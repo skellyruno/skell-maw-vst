@@ -1,29 +1,79 @@
-# Skell VST3 Quickstart Template
+# Skell Maw - The Girl & The Serpent (plugin collection)
 
-Reusable JUCE 8 / CMake / GitHub Actions Windows VST3 starter derived from the **build structure** of your uploaded skell-key-vst project. Unlike the TONIC-specific project, this is a generic **gain effect** with a working parameter, GUI knob, preset-state serialization, mono/stereo support, and automated GitHub packaging.
+Seven JUCE 8 audio plugins (VST3 + Standalone, plus AU on macOS) that all use one illustration as their interface.
+Built on the StopDial quickstart template: same CMake + FetchContent JUCE setup, same GitHub Actions flow,
+same vector-only, no-bundled-fonts approach.
 
-## Fast start
+| # | Plugin | Type | Hero gesture on the art |
+|---|---|---|---|
+| 1 | Dark Forest | Reverb | Drag the tree trunks up/down: room size |
+| 2 | Hypnosis | Phaser | Drag the serpent's eye up/down: LFO rate (the glow pulses with the LFO) |
+| 3 | Serpent's Maw | Distortion | Pull the tongue left: drive |
+| 4 | Butterfly Delay | Ping-pong delay | Drag the butterflies left/right: delay time (or pick a tempo sync) |
+| 5 | Shed Skin | Freeze / granular glitch | Click the serpent to freeze, drag to set grain size |
+| 6 | Constrictor | Compressor + soft/hard ceiling | Pull the rope down: lower threshold (rope glows with gain reduction) |
+| 7 | Night Bloom | Harmonic exciter | Drag the blossom branch: bloom amount |
 
-1. Create a new GitHub repository and upload the **contents** of this folder (including `.github`).
-2. Open **Actions → Build Windows VST3 → Run workflow**.
-3. After a successful build, download the workflow artifact containing the `.vst3` bundle.
-4. Or run `python tools/new_plugin.py "Skell Compressor" ../skell-compressor --code Sk03` to generate a separate renamed project. Use a **different 4-character plugin code** for every released plugin; the manufacturer code should remain stable for your brand.
+Shift-drag = fine adjust. Double-click the hotspot = reset. Hamburger (top-left) = reset all controls / about.
 
-## Local build
+## Build
 
-`cmake -S . -B build -A x64 -DJUCE_PATH=C:/JUCE`
+Requires CMake 3.22+, a C++17 compiler, and internet on first configure (CMake downloads JUCE 8.0.12),
+or pass `-DJUCE_PATH=/path/to/JUCE`.
 
-`cmake --build build --config Release --parallel 2`
+```bash
+# Windows (Visual Studio 2022)
+cmake -S . -B build -A x64
+cmake --build build --config Release --parallel 2
 
-Without `JUCE_PATH`, CMake fetches JUCE 8.0.12 from GitHub.
+# macOS
+cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build build --config Release --parallel 3
+```
 
-## Where to edit
+Outputs land in `build/<Plugin>_artefacts/Release/...`. Build one plugin only with
+`cmake --build build --config Release --target SerpentsMaw`.
 
-- `Source/PluginProcessor.cpp`: parameters and DSP (the sample multiplies incoming audio by Gain).
-- `Source/PluginEditor.cpp`: GUI and knob layout.
-- `CMakeLists.txt`: company, unique plugin code, bundle ID, plugin format, name.
-- `.github/workflows/build.yml`: CI compilation and artifact packaging.
+### No local toolchain? Use GitHub
 
-## Important
+Push this folder to a GitHub repo and run **Actions -> Build Skell Maw collection**.
+Download `SkellMaw-Windows` / `SkellMaw-macOS` from the run's artifacts.
 
-This is **not** a synthesizer template; it is an audio effect. It does not include TONIC's pitch/key detector or third-party graphical assets. The supplied original ZIP was used to guide project layout and the GitHub workflow. No original TONIC code is bundled. A successful GitHub Actions build has not been verified in this environment.
+## Layout
+
+```
+Assets/art.jpg           your illustration (embedded into every plugin)
+Common/                  shared library used by all plugins
+  PluginSpec.h           describes a plugin: params, art crop, hero hotspot
+  MawProcessorBase.*     APVTS built from the spec, state, level metering
+  MawEditor.*            art-based editor: knobs, dropdowns, hero drag, glow
+  MawLookAndFeel.*       rotary knobs, pill toggle, popup menu
+  DspUtil.h              delay line, one-pole, biquad
+Plugins/<Name>/<Name>.cpp   spec + DSP for each plugin (~100 lines each)
+```
+
+## Adding chapter 8
+
+1. Copy any `Plugins/X/X.cpp`, rename, change the spec and DSP.
+2. Add one `maw_add_plugin(...)` line in `CMakeLists.txt` with a unique 4-char `PLUGIN_CODE`.
+
+## Tuning the art
+
+Each plugin shows a crop of the illustration (`p.crop`) and a hero hotspot (`p.heroRect`),
+both in fractions of the original image. If a hotspot or glow sits in the wrong place,
+edit those numbers in the plugin's `makeSpec()`. Hover the art to see the hotspot outline.
+The source image is only ~750 px, so tight crops (Hypnosis, Night Bloom) look soft;
+replace `Assets/art.jpg` with a high-res export (same framing) for sharp results.
+
+## Status and known limits
+
+- **Not yet compiled.** This was written without a JUCE install or network, so the first
+  CI run may surface a typo or two. Send me the compiler output and I'll fix it.
+- No presets, bypass button, or resizable-art animation yet.
+- Night Bloom, Constrictor and the Tube/Fold/Hard modes of Serpent's Maw are not oversampled
+  (only the Serpent's Maw shaper is 4x oversampled); add oversampling if you hear aliasing.
+- Shed Skin is a time-domain granular freeze, not an FFT spectral freeze.
+- Hosts that exceed their declared max block size make Dark Forest pass audio through.
+- Company name "Skell Audio", manufacturer code `SkAu` and bundle IDs are taken from the
+  template; change them in `CMakeLists.txt` if you want your own.
+- Commercial release needs code-signing / notarization on macOS and a VST3 SDK licence check.
