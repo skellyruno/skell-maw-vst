@@ -97,7 +97,7 @@ void MawEditor::paint (juce::Graphics& g)
 
     if (art.isValid())
     {
-        g.setImageResampling (juce::Graphics::highResamplingQuality);
+        g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
         const int iw = art.getWidth(), ih = art.getHeight();
         g.drawImage (art, 0, 0, getWidth(), getHeight(),
                      juce::roundToInt (spec.crop.getX() * (float) iw), juce::roundToInt (spec.crop.getY() * (float) ih),
