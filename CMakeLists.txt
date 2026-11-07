@@ -39,7 +39,7 @@ target_link_libraries(MawCommon PUBLIC
     juce::juce_recommended_warning_flags)
 
 # ---- Plugins ----------------------------------------------------------------
-set(MAW_FORMATS VST3 Standalone)
+set(MAW_FORMATS VST3)
 if(APPLE)
     list(APPEND MAW_FORMATS AU)
 endif()
