@@ -14,11 +14,15 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $plugin = Get-ChildItem -Path build -Directory -Recurse -Filter '*.vst3' | Select-Object -First 1
-          if (-not $plugin) { throw 'VST3 bundle missing' }
-          Compress-Archive -Path $plugin.FullName -DestinationPath SkellPlugin-Windows-VST3.zip
+          New-Item -ItemType Directory -Path package | Out-Null
+          $plugins = Get-ChildItem -Path build -Directory -Recurse -Filter '*.vst3'
+          if (-not $plugins) { throw 'VST3 bundles missing' }
+          foreach ($p in $plugins) { Copy-Item -Recurse $p.FullName package/ }
+          Write-Host "Packaged VST3s:"
+          Get-ChildItem package | ForEach-Object { Write-Host $_.Name }
+          Compress-Archive -Path package/* -DestinationPath SkellMaw-VST3.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: SkellPlugin-Windows-VST3
-          path: SkellPlugin-Windows-VST3.zip
+          name: SkellMaw-VST3
+          path: SkellMaw-VST3.zip
           if-no-files-found: error
