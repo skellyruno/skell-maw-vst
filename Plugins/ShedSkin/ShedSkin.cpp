@@ -22,6 +22,8 @@ namespace
             p.heroAxis = 0; p.heroSign = 1;
             p.clickToggleId = "freeze";                // click the serpent to shed
             p.glowPos = { 0.78f, 0.45f }; p.glowRadius = 0.15f;
+            p.fx = PluginSpec::fxFlecks;
+            p.frost = true;
             return p;
         }();
         return s;
@@ -67,13 +69,19 @@ namespace
 
                 if (freezeMix > 0.0005f)
                 {
-                    for (auto& gr : grains)
+                    // grains of different length (glitch) don't cross-fade to exactly 1, so normalise
+                    float w[2];
+                    for (int k = 0; k < 2; ++k)
+                        w[k] = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * grains[k].t / grains[k].len);
+                    const float norm = 1.0f / juce::jmax (1.0f, w[0] + w[1]);
+
+                    for (int k = 0; k < 2; ++k)
                     {
-                        const float w = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * gr.t / gr.len);
+                        auto& gr = grains[k];
                         float off = std::fmod (gr.p0 + gr.t * gr.rate, (float) segLen);
                         if (off < 0.0f) off += (float) segLen;
                         for (int c = 0; c < nCh; ++c)
-                            wet[c] += w * readRing (c, (float) segStart + off);
+                            wet[c] += w[k] * norm * readRing (c, (float) segStart + off);
 
                         gr.t += 1.0f;
                         if (gr.t >= gr.len) newGrain (gr, sizeSamples, rate, scatter, glitch);
@@ -112,7 +120,10 @@ namespace
             const bool glitchy = rng.nextFloat() < glitch;
             g.len = juce::jmax (64.0f, (glitchy && rng.nextBool()) ? sizeSamples * 0.5f : sizeSamples);
             g.rate = rate * ((glitchy && rng.nextBool()) ? -1.0f : 1.0f);
-            g.p0 = rng.nextFloat() * scatter * (float) segLen;
+            // keep the whole grain inside the frozen segment so it never wraps mid-grain (that clicks)
+            const float span = g.len * std::abs (g.rate);
+            const float room = juce::jmax (0.0f, (float) segLen - span);
+            g.p0 = rng.nextFloat() * scatter * room + (g.rate < 0.0f ? juce::jmin (span, (float) segLen) : 0.0f);
             g.t = 0.0f;
         }
 

@@ -1,9 +1,30 @@
 name: Build Windows VST3
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main ]
+
+# Only PR builds are supersedable. Keep manual runs and main builds intact.
+concurrency:
+  group: skell-maw-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 
 jobs:
+  dsp_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure JUCE-free DSP regression tests
+        run: cmake -S . -B build-dsp -DCMAKE_BUILD_TYPE=Release -DMAW_DSP_TESTS_ONLY=ON
+      - name: Compile DSP tests
+        run: cmake --build build-dsp --parallel 2
+      - name: Run DSP tests
+        run: ctest --test-dir build-dsp --output-on-failure
+
   build:
+    needs: dsp_tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

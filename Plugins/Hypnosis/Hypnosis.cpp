@@ -10,7 +10,7 @@ namespace
             PluginSpec p;
             p.name = "Hypnosis"; p.chapter = "Chapter 2 - The Gaze"; p.tagline = "Look into the eye.";
             p.accent = 0xffe08a2d;
-            p.crop = { 0.66f, 0.17f, 0.34f, 0.34f };
+            p.crop = { 0.55f, 0.12f, 0.45f, 0.45f };
             p.params = {
                 ParamSpec::flt ("rate",     "Rate",     0.05f, 12.0f, 0.6f, "Hz", 0.4f, 0.01f),
                 ParamSpec::flt ("depth",    "Depth",    0.0f, 1.0f, 0.7f, "%"),
@@ -20,6 +20,8 @@ namespace
             p.heroId = "rate"; p.heroRect = { 0.80f, 0.26f, 0.17f, 0.17f };
             p.heroAxis = 1; p.heroSign = 1;
             p.glowPos = { 0.868f, 0.345f }; p.glowRadius = 0.10f;
+            p.fx = PluginSpec::fxFireflies; p.rings = true;
+            p.eye = true;
             return p;
         }();
         return s;
@@ -33,7 +35,8 @@ namespace
     protected:
         void prepare (double sampleRate, int maxBlock, int numChannels) override
         {
-            phaser.prepare ({ sampleRate, (juce::uint32) maxBlock, (juce::uint32) juce::jmax (1, numChannels) });
+            maxBlockSize = juce::jmax (1, maxBlock);
+            phaser.prepare ({ sampleRate, (juce::uint32) maxBlockSize, (juce::uint32) juce::jmax (1, numChannels) });
             phaser.reset();
             phase = 0.0f;
         }
@@ -47,9 +50,15 @@ namespace
             phaser.setFeedback (getParam ("feedback"));
             phaser.setMix (getParam ("mix"));
 
-            juce::dsp::AudioBlock<float> block (buffer);
-            juce::dsp::ProcessContextReplacing<float> ctx (block);
-            phaser.process (ctx);
+            // never hand the phaser more samples than it was prepared for
+            juce::dsp::AudioBlock<float> whole (buffer);
+            const int total = buffer.getNumSamples();
+            for (int start = 0; start < total; start += maxBlockSize)
+            {
+                auto part = whole.getSubBlock ((size_t) start, (size_t) juce::jmin (maxBlockSize, total - start));
+                juce::dsp::ProcessContextReplacing<float> ctx (part);
+                phaser.process (ctx);
+            }
 
             // the eye pulses with the LFO
             phase += rate * (float) buffer.getNumSamples() / (float) sr;
@@ -60,6 +69,7 @@ namespace
     private:
         juce::dsp::Phaser<float> phaser;
         float phase = 0.0f;
+        int maxBlockSize = 512;
     };
 }
 

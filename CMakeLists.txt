@@ -3,6 +3,28 @@ project(SkellMaw VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Build and run the real DSP sources under the small test shim without fetching JUCE.
+# Useful in CI and on machines that do not have the full plugin SDK installed.
+option(MAW_DSP_TESTS_ONLY "Configure only JUCE-free DSP regression tests" OFF)
+if(MAW_DSP_TESTS_ONLY)
+    enable_testing()
+    foreach(case IN ITEMS Constrictor NightBloom ButterflyDelay ShedSkin)
+        if(case STREQUAL "NightBloom")
+            set(test_name nightbloom)
+        elseif(case STREQUAL "ButterflyDelay")
+            set(test_name butterfly)
+        elseif(case STREQUAL "ShedSkin")
+            set(test_name shed)
+        else()
+            set(test_name constrictor)
+        endif()
+        add_executable(maw_dsp_${test_name} Tests/harness.cpp Plugins/${case}/${case}.cpp)
+        target_include_directories(maw_dsp_${test_name} PRIVATE Tests/shim)
+        add_test(NAME maw_dsp_${test_name} COMMAND maw_dsp_${test_name} ${test_name})
+    endforeach()
+    return()
+endif()
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 endif()
@@ -20,7 +42,7 @@ else()
 endif()
 
 # ---- Shared artwork + shared library --------------------------------------
-juce_add_binary_data(MawArt HEADER_NAME "MawArtData.h" NAMESPACE MawArtData SOURCES Assets/art.jpg)
+juce_add_binary_data(MawArt HEADER_NAME "MawArtData.h" NAMESPACE MawArtData SOURCES Assets/art.jpg Assets/butterflies.png Assets/tongue.png)
 set_target_properties(MawArt PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 add_library(MawCommon STATIC

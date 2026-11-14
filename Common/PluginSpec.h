@@ -55,4 +55,16 @@ struct PluginSpec
     juce::Point<float> glowPos { 0.5f, 0.5f };                 // centre of the reactive glow
     float glowRadius = 0.25f;
     juce::String clickToggleId;                                // optional bool toggled by clicking the hotspot
+
+    // procedural animation (no extra art needed)
+    enum Fx { fxFireflies, fxEmbers, fxPetals, fxFlecks, fxButterflies };
+    int fx = fxFireflies;                                      // drifting particles drawn over the art
+    bool rings = false;                                        // pulse rings around the glow, paced by the hero value (Hypnosis)
+    bool eye = false;                                          // pupil dilates with the plugin's reaction value (Hypnosis: the LFO)
+    bool tongue = false;                                       // serpent flicks its tongue, more often when busy (Serpent's Maw)
+    bool fog = false;                                          // drifting mist, thicker with the hero value (Dark Forest)
+    bool sparkles = false;                                     // blossoms glitter with the hero value (Night Bloom)
+    bool squeeze = false;                                      // frame tightens with the reaction value = gain reduction (Constrictor)
+    bool frost = false;                                        // reaction value = freeze amount: time slows and the frame ices over (Shed Skin)
+    int echoes = 0;                                            // ghost trails behind the butterflies, spaced by the hero value (Butterfly Delay)
 };
