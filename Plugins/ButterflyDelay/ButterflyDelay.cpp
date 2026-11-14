@@ -23,6 +23,8 @@ namespace
             p.heroId = "time"; p.heroRect = { 0.05f, 0.05f, 0.50f, 0.40f };
             p.heroAxis = 0; p.heroSign = 1;
             p.glowPos = { 0.35f, 0.22f }; p.glowRadius = 0.30f;
+            p.fx = PluginSpec::fxButterflies;
+            p.echoes = 3;
             return p;
         }();
         return s;
@@ -59,7 +61,11 @@ namespace
 
             const float fb = getParam ("feedback"), spread = getParam ("spread"), mix = getParam ("mix");
             const float a = maw::OnePoleLP::coeff (getParam ("tone"), sr);
-            const float flutterSamples = getParam ("flutter") * 0.006f * (float) sr;
+            // Keep modulation inside the short-time delay window. At 5 ms the old
+            // +/-6 ms LFO clipped against the 1-sample delay minimum and flattened
+            // part of every cycle, creating unnecessary high-frequency discontinuities.
+            const float flutterSamples = juce::jmin (getParam ("flutter") * 0.006f * (float) sr,
+                                                     0.45f * juce::jmax (5.0f, ms) * 0.001f * (float) sr);
             const float inc = 0.4f / (float) sr;
             float peak = 0.0f;
 

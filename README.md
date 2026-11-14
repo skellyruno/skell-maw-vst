@@ -67,8 +67,8 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 
 ## Status and known limits
 
-- **Not yet compiled.** This was written without a JUCE install or network, so the first
-  CI run may surface a typo or two. Send me the compiler output and I'll fix it.
+- **Windows VST3 build and FL Studio host validation remain unverified** in this source update.
+  JUCE cannot be fetched from the offline test environment; do not treat this as a release build.
 - No presets, bypass button, or resizable-art animation yet.
 - Night Bloom, Constrictor and the Tube/Fold/Hard modes of Serpent's Maw are not oversampled
   (only the Serpent's Maw shaper is 4x oversampled); add oversampling if you hear aliasing.
@@ -77,3 +77,35 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 - Company name "Skell Audio", manufacturer code `SkAu` and bundle IDs are taken from the
   template; change them in `CMakeLists.txt` if you want your own.
 - Commercial release needs code-signing / notarization on macOS and a VST3 SDK licence check.
+
+## DSP tests (no JUCE needed)
+
+Build the actual Constrictor, Night Bloom, Butterfly Delay and Shed Skin processing
+sources against the small JUCE shim and run their regression checks via CTest:
+
+```bash
+cmake -S . -B build-dsp -DMAW_DSP_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-dsp --parallel 2
+ctest --test-dir build-dsp --output-on-failure
+```
+
+These tests cover audio bounds and finite values, delay timing, freeze transitions,
+and Night Bloom's parameter-automation smoothing. They are **not** a substitute for
+building JUCE VST3s, checking mono and stereo hosts, recording real A/B audio,
+or measuring Windows CPU/latency.
+
+`Tests/` compiles the real Constrictor, Night Bloom, Butterfly Delay and Shed Skin sources against a tiny JUCE stand-in and checks levels, timing, NaNs, clicks and bounds:
+
+    g++ -std=c++17 -fsanitize=address,undefined -ITests/shim Tests/harness.cpp Plugins/Constrictor/Constrictor.cpp -o t && ./t constrictor
+
+Names: constrictor, nightbloom (Plugins/NightBloom), butterfly (ButterflyDelay), shed (ShedSkin).
+
+## Animation layers
+The six butterflies are cut out of the illustration and animated live (flap, drift, faster when audio is playing). `Assets/art.jpg` is the art *without* them; `Assets/butterflies.png` holds the sprites; the untouched original is `Assets/source/art_original.jpg`. To change the art, replace the original and run `python3 Tools/make_layers.py` (numpy, scipy, opencv-python, pillow). If the butterflies move in the new art, update the home positions in `kSprites` in `Common/MawEditor.cpp` from the script's printed table.
+
+## What moves in each plugin
+All: breathing zoom, flapping butterflies, drifting particles, an idling tongue. Plus:
+Dark Forest - mist rolls in with Size and level. Hypnosis - the pupil dilates with the real LFO and rings leave the eye.
+Serpent's Maw - the tongue flicks, faster the hotter the signal. Butterfly Delay - ghost trails behind the butterflies, spaced by Time.
+Shed Skin - freezing slows the whole picture and ices the corners. Constrictor - the frame closes in with gain reduction.
+Night Bloom - the blossoms glitter with Amount. (`Assets/tongue.png` is the tongue cut out of the art by Tools/make_layers.py.)

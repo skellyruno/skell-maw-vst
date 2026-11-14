@@ -22,6 +22,8 @@ namespace
             p.heroId = "threshold"; p.heroRect = { 0.0f, 0.62f, 0.20f, 0.36f };
             p.heroAxis = 1; p.heroSign = 1;            // pull the rope down to lower the threshold
             p.glowPos = { 0.10f, 0.78f }; p.glowRadius = 0.18f;
+            p.fx = PluginSpec::fxFireflies;
+            p.squeeze = true;
             return p;
         }();
         return s;
@@ -68,7 +70,7 @@ namespace
                     float* d = buffer.getWritePointer (c);
                     const float dry = d[i];
                     float y = dry * gain;
-                    if (knot == 1)      y = ceiling * std::tanh (y / ceiling);
+                    if (knot == 1)      y = softCeiling (y);
                     else if (knot == 2) y = juce::jlimit (-ceiling, ceiling, y);
                     d[i] = dry * (1.0f - mix) + y * mix;
                 }
@@ -77,6 +79,15 @@ namespace
         }
 
     private:
+        // Transparent below 0.6, then rounds smoothly into the ceiling (continuous value and slope).
+        static float softCeiling (float y) noexcept
+        {
+            constexpr float t = 0.6f, c = 0.97f;
+            const float a = std::abs (y);
+            if (a <= t) return y;
+            return std::copysign (t + (c - t) * std::tanh ((a - t) / (c - t)), y);
+        }
+
         float grState = 0.0f;
     };
 }
