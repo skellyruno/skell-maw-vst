@@ -153,7 +153,10 @@ void MawEditor::paint (juce::Graphics& g)
         g.drawRoundedRectangle (rr.reduced (2.0f), 14.0f, 1.6f);
 
         const juce::String txt = hero->getName (32) + "   " + hero->getCurrentValueAsText();
-        auto pill = juce::Rectangle<float> (rr.getCentreX() - 95.0f, rr.getCentreY() - 14.0f, 190.0f, 28.0f);
+        const float pillWidth = juce::jmin (190.0f, W - 16.0f);
+        const float pillX = juce::jlimit (8.0f, W - pillWidth - 8.0f, rr.getCentreX() - pillWidth * 0.5f);
+        const float pillY = juce::jlimit (8.0f, H - 36.0f, rr.getCentreY() - 14.0f);
+        auto pill = juce::Rectangle<float> (pillX, pillY, pillWidth, 28.0f);
         g.setColour (juce::Colours::black.withAlpha (0.75f));
         g.fillRoundedRectangle (pill, 14.0f);
         g.setColour (accent);
