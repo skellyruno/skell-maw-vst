@@ -153,8 +153,14 @@ def stage_package(source_dir: Path, package_dir: Path, expected_plugins: tuple[s
     duplicates = sorted(name for name, paths in by_name.items() if len(paths) != 1)
     if missing or unexpected or duplicates:
         raise PackageValidationError(f"VST3 inventory mismatch; missing={missing}, unexpected={unexpected}, duplicates={duplicates}")
-    if package_dir.exists():
-        shutil.rmtree(package_dir)
+    # Never destroy an earlier preview or known-good package during staging.
+    # Use a fresh output path for each run so a failed/partial stage cannot
+    # erase the last package that was available for inspection.
+    if package_dir.exists() or package_dir.is_symlink():
+        raise PackageValidationError(
+            f"package destination already exists: {package_dir}; choose a new output path "
+            "to preserve the existing package"
+        )
     package_dir.mkdir(parents=True)
     seen_cids, plugins = set(), []
     for name in expected_plugins:

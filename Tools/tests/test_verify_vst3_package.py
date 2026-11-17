@@ -63,6 +63,21 @@ class PackageVerifierTests(unittest.TestCase):
             staged = json.loads((package / "Test Plugin.vst3/Contents/Resources/moduleinfo.json").read_text())
             self.assertEqual(staged["Name"], "Test Plugin")
 
+    def test_refuses_to_overwrite_existing_package(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, package = root / "source", root / "package"
+            self.make_bundle(source, "Test Plugin")
+            package.mkdir()
+            sentinel = package / "keep.txt"
+            sentinel.write_text("known-good package", encoding="utf-8")
+
+            with self.assertRaisesRegex(PackageValidationError, "choose a new output path"):
+                stage_package(source, package, expected_plugins=("Test Plugin",))
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "known-good package")
+            self.assertEqual(sorted(path.name for path in package.iterdir()), ["keep.txt"])
+
     def test_rejects_non_amd64_module(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
