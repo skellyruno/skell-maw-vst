@@ -68,7 +68,8 @@ class PackageVerifierTests(unittest.TestCase):
             self.assertIn(b"\n", guide_bytes)
             self.assertNotIn(b"\r\n", guide_bytes)
             self.assertIn("ROLLBACK", guide_text)
-            self.assertIn("preview package", guide_text.lower())
+            self.assertIn("private preview material", guide_text.lower())
+            self.assertIn("not a commercial release", guide_text.lower())
             # Manifest lines are "<sha256>  <relative-path>"; key by path so
             # the assertion verifies the guide's own digest, not the reverse map.
             checksum_lines = {}
