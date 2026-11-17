@@ -25,9 +25,6 @@ if(MAW_DSP_TESTS_ONLY)
     endforeach()
     return()
 endif()
-if(APPLE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
-endif()
 
 # ---- JUCE (same approach as the StopDial template) ------------------------
 include(FetchContent)
@@ -61,10 +58,8 @@ target_link_libraries(MawCommon PUBLIC
     juce::juce_recommended_warning_flags)
 
 # ---- Plugins ----------------------------------------------------------------
+# Windows-first release format: VST3 only; no additional plugin formats.
 set(MAW_FORMATS VST3)
-if(APPLE)
-    list(APPEND MAW_FORMATS AU)
-endif()
 
 function(maw_add_plugin target product code description)
     juce_add_plugin(${target}
