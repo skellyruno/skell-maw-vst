@@ -1,6 +1,6 @@
 # Skell Maw - The Girl & The Serpent (plugin collection)
 
-Seven JUCE 8 audio plugins that all use one illustration as their interface. **The Windows release workflow builds and packages VST3 only.** The optional Apple development configuration adds AU; this CMake project does not configure a Standalone target.
+Seven JUCE 8 audio plugins that all use one illustration as their interface. **This release is Windows-first and VST3-only; CMake exposes no AU or Standalone target.**
 Built on the StopDial quickstart template: same CMake + FetchContent JUCE setup, same vector-only, no-bundled-fonts approach.
 
 | # | Plugin | Type | Hero gesture on the art |
@@ -18,25 +18,33 @@ Shift-drag = fine adjust. Double-click the hotspot = reset. Hamburger (top-left)
 ## Build
 
 Requires CMake 3.22+, a C++17 compiler, and internet on first configure (CMake downloads JUCE 8.0.12),
-or pass `-DJUCE_PATH=/path/to/JUCE`.
+or pass `-DJUCE_PATH=/path/to/JUCE`. The release target is VST3 only.
 
 ```bash
-# Windows (Visual Studio 2022)
+# Windows (Visual Studio 2022, x64)
 cmake -S . -B build -A x64
 cmake --build build --config Release --parallel 2
-
-# macOS
-cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-cmake --build build --config Release --parallel 3
 ```
 
-Outputs land in `build/<Plugin>_artefacts/Release/...`. Build one plugin only with
+Outputs land in `build/<Plugin>_artefacts/Release/`. Build one plugin only with
 `cmake --build build --config Release --target SerpentsMaw`.
 
 ### No local toolchain? Use GitHub
 
 Push this folder to a GitHub repo and run **Actions -> Build Windows VST3**.
-Download `SkellMaw-Windows-VST3` from the workflow run. This artifact is a preview package, not an installer or commercial release; use the included `WINDOWS-VST3-INSTALL.txt` for safe manual test installation and rollback.
+Download `SkellMaw-Windows-VST3` from the workflow run. This is a private preview package, not a signed installer or commercial release.
+
+### Optional per-user preview install
+
+The extracted package includes `WINDOWS-VST3-INSTALL.txt` and an optional PowerShell 7 helper.
+From the extracted package root, run:
+
+```powershell
+pwsh -NoProfile -File .\Tools\Install-SkellMawPreview.ps1 -PackagePath .
+```
+
+The helper defaults to `%LOCALAPPDATA%\Programs\Common\VST3`, verifies package checksums, backs up existing bundles, and prints a rollback manifest path.
+Use `-ManifestPath <path>` with the same script to roll back. It refuses system-wide Program Files installs and refuses to overwrite bundles changed after installation.
 
 ## Layout
 
@@ -66,16 +74,16 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 
 ## Status and known limits
 
-- The Windows release workflow builds the x64 VST3 collection, validates the staged bundles, and runs pluginval strictness 5 for all seven plugins. A green CI result does **not** establish FL Studio host acceptance, saved-project/state recall, real audio A/B, target-hardware CPU/latency, or full UI acceptance; verify those separately.
-- The Actions package is preview-only and unsigned; it is not an installer or commercial release. Verify the exact workflow head and included SHA-256 manifest before installing.
+- Windows x64 VST3 build, package verification, and all seven pluginval strictness-5 checks passed in workflow #44031640565. FL Studio scan/load, saved-project/state recall, musical A/B, target-hardware CPU/latency, and full UI acceptance remain unverified.
+- The Actions package is preview-only and unsigned. The optional PowerShell helper is not a signed installer and does not run automatically.
 - No presets, bypass button, or resizable-art animation yet.
 - Night Bloom, Constrictor and the Tube/Fold/Hard modes of Serpent's Maw are not oversampled
   (only the Serpent's Maw shaper is 4x oversampled); add oversampling if you hear aliasing.
 - Shed Skin is a time-domain granular freeze, not an FFT spectral freeze.
 - Hosts that exceed their declared max block size make Dark Forest pass audio through.
-- Company name "Skell Audio", manufacturer code `SkAu` and bundle IDs are taken from the
+- Company name `Skell Audio`, manufacturer code `SkAu` and bundle IDs are taken from the
   template; change them in `CMakeLists.txt` if you want your own.
-- Commercial release still needs owner-approved license/attribution, vendor URL and support email, a Windows signing/installer decision, and host/audio acceptance. If macOS distribution is pursued later, notarization is a separate requirement.
+- Commercial release still needs owner-approved license/attribution, vendor URL, support email, VST3 SDK license review, a Windows signing/installer decision, and host/audio acceptance. No final license or commercial approval is included in this preview.
 
 ## DSP tests (no JUCE needed)
 
