@@ -130,13 +130,14 @@ function Test-SkellMawPreviewPackage {
     }
 
     $expected = @($script:ExpectedPluginNames | Sort-Object)
+    $expectedBundles = @($expected | ForEach-Object { $_ + ".vst3" })
     $bundles = @(
         Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction Stop |
             Where-Object { $_.Name.EndsWith(".vst3", [System.StringComparison]::OrdinalIgnoreCase) } |
             ForEach-Object { $_.Name } |
             Sort-Object
     )
-    if (($bundles -join [Environment]::NewLine) -ne ($expected -join [Environment]::NewLine)) {
+    if (($bundles -join [Environment]::NewLine) -ne ($expectedBundles -join [Environment]::NewLine)) {
         throw "Package must contain exactly the seven expected VST3 bundles; found: $($bundles -join ', ')"
     }
 

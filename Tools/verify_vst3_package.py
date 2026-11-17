@@ -229,7 +229,7 @@ and support email are supplied.
 CI/pluginval does not imply FL Studio project/state recall, musical A/B, target-hardware
 CPU/latency, or full UI acceptance.
 """,
-        encoding="utf-8", newline="\\n")
+        encoding="utf-8", newline="\n")
     tools_dir = package_dir / "Tools"
     tools_dir.mkdir()
     for helper_name in ("Install-SkellMawPreview.ps1", "SkellMawPreviewInstall.psm1"):
