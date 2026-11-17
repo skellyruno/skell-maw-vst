@@ -77,6 +77,10 @@ class PackageVerifierTests(unittest.TestCase):
                 checksum_lines["WINDOWS-VST3-INSTALL.txt"],
             )
             staged = json.loads((package / "Test Plugin.vst3/Contents/Resources/moduleinfo.json").read_text())
+            self.assertTrue((package / "Tools/Install-SkellMawPreview.ps1").is_file())
+            self.assertTrue((package / "Tools/SkellMawPreviewInstall.psm1").is_file())
+            self.assertIn("Tools/Install-SkellMawPreview.ps1", checksum_lines)
+            self.assertIn("Tools/SkellMawPreviewInstall.psm1", checksum_lines)
             self.assertEqual(staged["Name"], "Test Plugin")
 
     def test_refuses_to_overwrite_existing_package(self):
@@ -133,6 +137,17 @@ class PackageVerifierTests(unittest.TestCase):
             self.make_bundle(root / "source", "Unexpected")
             with self.assertRaisesRegex(PackageValidationError, "inventory mismatch"):
                 stage_package(root / "source", root / "package", expected_plugins=("Expected",))
+
+    def test_release_configuration_is_vst3_only_and_windows_first(self):
+        root = Path(__file__).resolve().parents[2]
+        cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+        workflow = (root / ".github/workflows/build.yml").read_text(encoding="utf-8")
+        self.assertIn("set(MAW_FORMATS VST3)", cmake)
+        self.assertNotIn("list(APPEND MAW_FORMATS AU)", cmake)
+        self.assertNotIn("Standalone", cmake)
+        self.assertNotIn("CMAKE_OSX", cmake)
+        self.assertIn("runs-on: windows-latest", workflow)
+        self.assertNotIn("macos-latest", workflow)
 
 
 if __name__ == "__main__":
