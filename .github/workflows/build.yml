@@ -7,9 +7,8 @@ on:
 
 # Only PR builds are supersedable. Keep manual runs and main builds intact.
 concurrency:
-  group: skell-maw-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  group: skell-maw-\${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
 
 jobs:
   dsp_tests:
@@ -28,22 +27,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -A x64
-      - name: Build
-        run: cmake --build build --config Release --parallel 2
-      - name: Package
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path package | Out-Null
-          $plugins = Get-ChildItem -Path build -Directory -Recurse -Filter '*.vst3'
-          if (-not $plugins) { throw 'VST3 bundles missing' }
-          foreach ($p in $plugins) { Copy-Item -Recurse $p.FullName package/ }
-          Write-Host "Packaged VST3s:"
-          Get-ChildItem package | ForEach-Object { Write-Host $_.Name }
-          Compress-Archive -Path package/* -DestinationPath SkellMaw-VST3.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v5
         with:
-          name: SkellMaw-VST3
-          path: SkellMaw-VST3.zip
+          python-version: "3.12"
+      - name: Configure Windows VST3 collection
+        run: cmake -S . -B build -A x64
+      - name: Build Windows VST3 collection
+        run: cmake --build build --config Release --parallel 2
+      - name: Test release package validator
+        run: python -m unittest discover -s Tools/tests -v
+      - name: Stage and validate Windows VST3 bundles
+        run: python Tools/verify_vst3_package.py --source-dir build --package-dir package
+      - name: Upload verified preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkellMaw-Windows-VST3
+          path: package/
           if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
