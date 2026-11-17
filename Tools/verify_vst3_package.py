@@ -182,6 +182,49 @@ def stage_package(source_dir: Path, package_dir: Path, expected_plugins: tuple[s
         "Back up existing plugin installations before manual testing.\n"
         "Contains seven separate VST3 bundles; install only the bundles you intend to test.\n",
         encoding="utf-8", newline="\n")
+    (package_dir / "WINDOWS-VST3-INSTALL.txt").write_text(
+        """SKELL MAW 1.0.0 — WINDOWS x64 VST3 PREVIEW
+
+This archive contains seven separate VST3 bundles. It is a private preview package,
+not an installer, not code-signed, and not a commercial release.
+
+SAFE TEST INSTALL
+1. Close FL Studio and every other audio host before changing plugin files.
+2. Extract this archive to a temporary folder. Do not copy the ZIP itself into a
+   VST3 scan directory.
+3. Choose only the plugin bundles you intend to test.
+4. If a same-named bundle already exists in your VST3 scan path, copy that entire
+   existing bundle to a backup location outside every scanned VST3 directory.
+   Never overwrite the last known-good copy. If you cannot make and verify a
+   backup, do not replace the existing bundle.
+5. Copy the selected <Plugin Name>.vst3 directory into
+   %CommonProgramFiles%\\VST3 (normally C:\\Program Files\\Common Files\\VST3),
+   or use a user VST3 directory that your host is explicitly configured to scan.
+6. Start the host and rescan plugins. Confirm the exact plugin name before opening
+   a project. Test in a disposable copy of a project first.
+
+ROLLBACK
+1. Close the host.
+2. Remove only the preview bundle you installed.
+3. Restore the backed-up bundle to its original path, if one was replaced.
+4. Rescan plugins and reopen the disposable project. Do not delete presets, host
+   state, automation data, or unrelated VST3 bundles.
+
+INTEGRITY
+- build-info.json records the source ref, commit, workflow run and expected plugins.
+- SHA256SUMS.txt covers the staged plugin payloads and package sidecars (the
+  checksum file does not checksum itself).
+- Verify the archive digest and each listed file before installation.
+
+LICENSE / DISTRIBUTION STATUS
+This preview artifact does not contain final owner-approved license or attribution
+terms. Do not redistribute it or use it commercially until those terms are added
+and approved. Do not disable operating-system security controls or bypass warnings.
+
+No FL Studio load/save, project recall, musical A/B, target-hardware CPU/latency,
+or full UI acceptance is implied by this package guide or by CI/pluginval alone.
+""",
+        encoding="utf-8", newline="\n")
     checksums = []
     for path in sorted(p for p in package_dir.rglob("*") if p.is_file()):
         checksums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(package_dir).as_posix()}")

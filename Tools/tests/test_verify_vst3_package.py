@@ -1,3 +1,4 @@
+import hashlib
 import json
 import struct
 import sys
@@ -60,6 +61,21 @@ class PackageVerifierTests(unittest.TestCase):
             self.assertTrue((package / "build-info.json").is_file())
             self.assertTrue((package / "SHA256SUMS.txt").is_file())
             self.assertTrue((package / "PREVIEW-ONLY.txt").is_file())
+            install_guide = package / "WINDOWS-VST3-INSTALL.txt"
+            self.assertTrue(install_guide.is_file())
+            guide_text = install_guide.read_text(encoding="utf-8")
+            self.assertIn("ROLLBACK", guide_text)
+            self.assertIn("preview package", guide_text.lower())
+            # Manifest lines are "<sha256>  <relative-path>"; key by path so
+            # the assertion verifies the guide's own digest, not the reverse map.
+            checksum_lines = {}
+            for line in (package / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+                digest, filename = line.split("  ", 1)
+                checksum_lines[filename] = digest
+            self.assertEqual(
+                hashlib.sha256(install_guide.read_bytes()).hexdigest(),
+                checksum_lines["WINDOWS-VST3-INSTALL.txt"],
+            )
             staged = json.loads((package / "Test Plugin.vst3/Contents/Resources/moduleinfo.json").read_text())
             self.assertEqual(staged["Name"], "Test Plugin")
 
