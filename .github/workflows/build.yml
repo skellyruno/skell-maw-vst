@@ -37,6 +37,9 @@ jobs:
         run: cmake --build build --config Release --parallel 2
       - name: Test release package validator
         run: python -m unittest discover -s Tools/tests -v
+      - name: Test private-preview install and rollback
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools/tests/test_preview_install.ps1
       - name: Stage and validate Windows VST3 bundles
         run: python Tools/verify_vst3_package.py --source-dir build --package-dir package
       - name: Validate Dark Forest VST3 with pluginval
