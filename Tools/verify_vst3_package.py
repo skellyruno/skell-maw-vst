@@ -60,11 +60,16 @@ def require_amd64_pe(path: Path) -> None:
             raise PackageValidationError(f"{path}: invalid PE header offset {offset}")
         stream.seek(offset)
         header = stream.read(6)
+        stream.seek(offset + 24)  # PE signature + 20-byte COFF header
+        optional_magic = stream.read(2)
     if len(header) != 6 or header[:4] != b"PE\0\0":
         raise PackageValidationError(f"{path}: missing PE signature")
     machine = struct.unpack_from("<H", header, 4)[0]
     if machine != 0x8664:
         raise PackageValidationError(f"{path}: expected AMD64 0x8664, found 0x{machine:04x}")
+    if optional_magic != b"\x0b\x02":
+        value = struct.unpack("<H", optional_magic)[0] if len(optional_magic) == 2 else -1
+        raise PackageValidationError(f"{path}: expected PE32+ optional header 0x20b, found 0x{value:04x}")
 
 
 def validate_bundle(bundle: Path, expected_name: str, seen_cids: set[str], expected_version: str = EXPECTED_VERSION) -> dict[str, Any]:
@@ -78,8 +83,11 @@ def validate_bundle(bundle: Path, expected_name: str, seen_cids: set[str], expec
     if not binary_dir.is_dir():
         raise PackageValidationError(f"{bundle}: missing x86_64-win directory")
     modules = sorted(p for p in binary_dir.iterdir() if p.is_file() and p.suffix.lower() == ".vst3")
-    if len(modules) != 1 or modules[0].name != f"{expected_name}.vst3":
-        raise PackageValidationError(f"{bundle}: expected exactly one correctly named Windows module")
+    all_modules = sorted(p for p in contents.rglob("*.vst3") if p.is_file())
+    if len(modules) != 1 or len(all_modules) != 1 or all_modules[0] != modules[0]:
+        raise PackageValidationError(f"{bundle}: expected exactly one module in x86_64-win and no duplicate architecture modules")
+    if modules[0].name != f"{expected_name}.vst3":
+        raise PackageValidationError(f"{bundle}: Windows module filename mismatch")
     module = modules[0]
     require_amd64_pe(module)
     try:
