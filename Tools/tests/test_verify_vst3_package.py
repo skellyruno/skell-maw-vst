@@ -64,6 +64,9 @@ class PackageVerifierTests(unittest.TestCase):
             install_guide = package / "WINDOWS-VST3-INSTALL.txt"
             self.assertTrue(install_guide.is_file())
             guide_text = install_guide.read_text(encoding="utf-8")
+            guide_bytes = install_guide.read_bytes()
+            self.assertIn(b"\n", guide_bytes)
+            self.assertNotIn(b"\r\n", guide_bytes)
             self.assertIn("ROLLBACK", guide_text)
             self.assertIn("preview package", guide_text.lower())
             # Manifest lines are "<sha256>  <relative-path>"; key by path so
