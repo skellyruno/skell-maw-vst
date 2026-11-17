@@ -10,7 +10,6 @@ concurrency:
   group: skell-maw-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-
 jobs:
   dsp_tests:
     runs-on: ubuntu-latest
@@ -26,24 +25,67 @@ jobs:
   build:
     needs: dsp_tests
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -A x64
-      - name: Build
-        run: cmake --build build --config Release --parallel 2
-      - name: Package
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path package | Out-Null
-          $plugins = Get-ChildItem -Path build -Directory -Recurse -Filter '*.vst3'
-          if (-not $plugins) { throw 'VST3 bundles missing' }
-          foreach ($p in $plugins) { Copy-Item -Recurse $p.FullName package/ }
-          Write-Host "Packaged VST3s:"
-          Get-ChildItem package | ForEach-Object { Write-Host $_.Name }
-          Compress-Archive -Path package/* -DestinationPath SkellMaw-VST3.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v5
         with:
-          name: SkellMaw-VST3
-          path: SkellMaw-VST3.zip
+          python-version: "3.12"
+      - name: Configure Windows VST3 collection
+        run: cmake -S . -B build -A x64
+      - name: Build Windows VST3 collection
+        run: cmake --build build --config Release --parallel 2
+      - name: Test release package validator
+        run: python -m unittest discover -s Tools/tests -v
+      - name: Stage and validate Windows VST3 bundles
+        run: python Tools/verify_vst3_package.py --source-dir build --package-dir package
+      - name: Validate Dark Forest VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Dark Forest.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Hypnosis VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Hypnosis.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Serpents Maw VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Serpents Maw.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Butterfly Delay VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Butterfly Delay.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Shed Skin VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Shed Skin.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Constrictor VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Constrictor.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Validate Night Bloom VST3 with pluginval
+        uses: Tracktion/pluginval/validate@v2.0.0-beta3
+        with:
+          plugins: package/Night Bloom.vst3
+          strictness-level: 5
+          pluginval-version: v2.0.0-beta3
+      - name: Upload verified preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkellMaw-Windows-VST3
+          path: package/
           if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
