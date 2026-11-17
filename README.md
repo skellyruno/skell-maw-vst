@@ -1,8 +1,7 @@
 # Skell Maw - The Girl & The Serpent (plugin collection)
 
-Seven JUCE 8 audio plugins (VST3 + Standalone, plus AU on macOS) that all use one illustration as their interface.
-Built on the StopDial quickstart template: same CMake + FetchContent JUCE setup, same GitHub Actions flow,
-same vector-only, no-bundled-fonts approach.
+Seven JUCE 8 audio plugins that all use one illustration as their interface. **The Windows release workflow builds and packages VST3 only.** The optional Apple development configuration adds AU; this CMake project does not configure a Standalone target.
+Built on the StopDial quickstart template: same CMake + FetchContent JUCE setup, same vector-only, no-bundled-fonts approach.
 
 | # | Plugin | Type | Hero gesture on the art |
 |---|---|---|---|
@@ -36,8 +35,8 @@ Outputs land in `build/<Plugin>_artefacts/Release/...`. Build one plugin only wi
 
 ### No local toolchain? Use GitHub
 
-Push this folder to a GitHub repo and run **Actions -> Build Skell Maw collection**.
-Download `SkellMaw-Windows` / `SkellMaw-macOS` from the run's artifacts.
+Push this folder to a GitHub repo and run **Actions -> Build Windows VST3**.
+Download `SkellMaw-Windows-VST3` from the workflow run. This artifact is a preview package, not an installer or commercial release; use the included `WINDOWS-VST3-INSTALL.txt` for safe manual test installation and rollback.
 
 ## Layout
 
@@ -67,8 +66,8 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 
 ## Status and known limits
 
-- **Windows VST3 build and FL Studio host validation remain unverified** in this source update.
-  JUCE cannot be fetched from the offline test environment; do not treat this as a release build.
+- The Windows release workflow builds the x64 VST3 collection, validates the staged bundles, and runs pluginval strictness 5 for all seven plugins. A green CI result does **not** establish FL Studio host acceptance, saved-project/state recall, real audio A/B, target-hardware CPU/latency, or full UI acceptance; verify those separately.
+- The Actions package is preview-only and unsigned; it is not an installer or commercial release. Verify the exact workflow head and included SHA-256 manifest before installing.
 - No presets, bypass button, or resizable-art animation yet.
 - Night Bloom, Constrictor and the Tube/Fold/Hard modes of Serpent's Maw are not oversampled
   (only the Serpent's Maw shaper is 4x oversampled); add oversampling if you hear aliasing.
@@ -76,7 +75,7 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 - Hosts that exceed their declared max block size make Dark Forest pass audio through.
 - Company name "Skell Audio", manufacturer code `SkAu` and bundle IDs are taken from the
   template; change them in `CMakeLists.txt` if you want your own.
-- Commercial release needs code-signing / notarization on macOS and a VST3 SDK licence check.
+- Commercial release still needs owner-approved license/attribution, vendor URL and support email, a Windows signing/installer decision, and host/audio acceptance. If macOS distribution is pursued later, notarization is a separate requirement.
 
 ## DSP tests (no JUCE needed)
 
