@@ -10,16 +10,17 @@ from Tools.verify_vst3_package import PackageValidationError, remove_trailing_co
 
 
 class PackageVerifierTests(unittest.TestCase):
-    def make_pe(self, path: Path, machine: int = 0x8664) -> None:
+    def make_pe(self, path: Path, machine: int = 0x8664, optional_magic: int = 0x20B) -> None:
         data = bytearray(256)
         data[:2] = b"MZ"
         struct.pack_into("<I", data, 0x3C, 128)
         data[128:132] = b"PE\0\0"
         struct.pack_into("<H", data, 132, machine)
+        struct.pack_into("<H", data, 152, optional_magic)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
 
-    def make_bundle(self, root: Path, name: str, cids=None, machine=0x8664) -> Path:
+    def make_bundle(self, root: Path, name: str, cids=None, machine=0x8664, optional_magic=0x20B) -> Path:
         bundle = root / f"{name}.vst3"
         resources = bundle / "Contents" / "Resources"
         module = bundle / "Contents" / "x86_64-win" / f"{name}.vst3"
@@ -36,7 +37,7 @@ class PackageVerifierTests(unittest.TestCase):
         }
         raw = json.dumps(metadata, indent=2).replace('"E-Mail": ""', '"E-Mail": "",')
         resources.joinpath("moduleinfo.json").write_text(raw, encoding="utf-8")
-        self.make_pe(module, machine)
+        self.make_pe(module, machine, optional_magic)
         return bundle
 
     def test_trailing_comma_removal_is_string_aware(self):
@@ -67,6 +68,23 @@ class PackageVerifierTests(unittest.TestCase):
             root = Path(temp)
             self.make_bundle(root / "source", "Test Plugin", machine=0x14C)
             with self.assertRaisesRegex(PackageValidationError, "expected AMD64"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
+
+    def test_rejects_pe32_not_pe32_plus(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root / "source", "Test Plugin", optional_magic=0x10B)
+            with self.assertRaisesRegex(PackageValidationError, r"expected PE32\+"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
+
+    def test_rejects_duplicate_architecture_module(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bundle = self.make_bundle(root / "source", "Test Plugin")
+            extra = bundle / "Contents" / "x86_64-linux" / "Test Plugin.vst3"
+            extra.parent.mkdir(parents=True)
+            extra.write_bytes(b"unexpected duplicate architecture payload")
+            with self.assertRaisesRegex(PackageValidationError, "duplicate architecture modules"):
                 stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
 
     def test_rejects_duplicate_class_ids_across_bundles(self):
