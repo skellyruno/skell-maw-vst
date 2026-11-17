@@ -24,7 +24,7 @@
 - Size: 60,106,306 bytes.
 - GitHub artifact digest: `sha256:efe0d67b4c60a2a7fd2e5e0ec169f5b8359b2f00bc58a441bcb28bb9d46e582f`.
 - Downloaded independent copy: `SkellMaw-Windows-VST3-run44031640565.zip`; local SHA-256 matched the GitHub digest.
-- Independent inspection: ZIP CRC passed; 17 entries; all 16 `SHA256SUMS.txt` entries recomputed correctly; exactly seven plugin bundles; all seven modules are AMD64 PE32+ (`0x8664 / 0x020b)); each `moduleinfo.json` parsed as strict JSON and contained the expected two classes.
+- Independent inspection: ZIP CRC passed; 17 entries; all 16 `SHA256SUMS.txt` entries recomputed correctly; exactly seven plugin bundles; all seven modules are AMD64 PE32+ (`0x8664 / 0x020b`); each `moduleinfo.json` parsed as strict JSON and contained the expected two classes.
 - The package's own `build-info.json` marks it `preview-only; not a commercial release`. The artifact is retained by GitHub until **2026-12-17 06:49 UTC**; keep the downloaded copy as the durable preview baseline.
 
 Earlier independent preview baseline (do not overwrite): [artifact #14295408141](https://github.com/skellyruno/skell-maw-vst/actions/runs/44007318584/artifacts/14295408141), SHA-256 `97e9e42da8969ea68ff345d4b875d1905a0ea7f8ed49b82760b3ff79b7aed4ef`.
