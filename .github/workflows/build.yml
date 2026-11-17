@@ -7,8 +7,8 @@ on:
 
 # Only PR builds are supersedable. Keep manual runs and main builds intact.
 concurrency:
-  group: skell-maw-\${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
+  group: skell-maw-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   dsp_tests:
