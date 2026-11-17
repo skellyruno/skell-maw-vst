@@ -84,6 +84,12 @@ try {
     $package = Test-SkellMawPreviewPackage -PackagePath $packagePath
     Assert-True -Condition ($package.PluginNames.Count -eq 7) -Message "package validator accepts exactly seven preview bundles"
 
+    $unexpectedBundle = Join-Path $packagePath "Unexpected.vst3"
+    New-Item -ItemType Directory -Path $unexpectedBundle -Force | Out-Null
+    Assert-Throws -Action { Test-SkellMawPreviewPackage -PackagePath $packagePath } -Message "unexpected VST3 bundle is rejected"
+    Remove-Item -LiteralPath $unexpectedBundle -Recurse -Force
+    $package = Test-SkellMawPreviewPackage -PackagePath $packagePath
+
     $whatIfResult = Install-SkellMawPreview -PackagePath $packagePath -Vst3Path $whatIfTarget -BackupRoot (Join-Path $tempRoot "whatif-backups") -WhatIf -Confirm:$false
     Assert-True -Condition ($whatIfResult.Status -eq "whatif") -Message "WhatIf reports a dry run"
     Assert-True -Condition (-not (Test-Path -LiteralPath $whatIfTarget)) -Message "WhatIf creates no destination directory"
