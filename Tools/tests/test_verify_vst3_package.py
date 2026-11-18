@@ -70,6 +70,8 @@ class PackageVerifierTests(unittest.TestCase):
             self.assertIn("ROLLBACK", guide_text)
             self.assertIn("private preview material", guide_text.lower())
             self.assertIn("not a commercial release", guide_text.lower())
+            self.assertIn("VST3 metadata/class-ID identity", guide_text)
+            self.assertIn("AMD64 PE32+ module", guide_text)
             # Manifest lines are "<sha256>  <relative-path>"; key by path so
             # the assertion verifies the guide's own digest, not the reverse map.
             checksum_lines = {}

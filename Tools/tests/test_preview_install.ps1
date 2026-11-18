@@ -24,19 +24,103 @@ function Assert-Throws {
     Assert-True -Condition $thrown -Message $Message
 }
 
+function Get-TestClassId {
+    param([string]$Seed)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Seed))
+        return [System.BitConverter]::ToString($digest).Replace("-", "").Substring(0, 32)
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function New-TestPeModule {
+    param(
+        [string]$Path,
+        [UInt16]$Machine = 0x8664,
+        [UInt16]$OptionalMagic = 0x20B
+    )
+    $data = New-Object byte[] 256
+    $data[0] = 0x4D
+    $data[1] = 0x5A
+    [System.BitConverter]::GetBytes([int]128).CopyTo($data, 0x3C)
+    $data[128] = 0x50
+    $data[129] = 0x45
+    $data[130] = 0
+    $data[131] = 0
+    [System.BitConverter]::GetBytes([UInt16]$Machine).CopyTo($data, 132)
+    [System.BitConverter]::GetBytes([UInt16]$OptionalMagic).CopyTo($data, 152)
+    [System.IO.File]::WriteAllBytes($Path, $data)
+}
+
+function Update-TestPackageChecksums {
+    param([string]$Path)
+    $sumPath = Join-Path $Path "SHA256SUMS.txt"
+    $sumLines = @(
+        Get-ChildItem -LiteralPath $Path -File -Force -Recurse |
+            Where-Object { $_.FullName -ne $sumPath } |
+            Sort-Object -Property FullName |
+            ForEach-Object {
+                $relative = $_.FullName.Substring($Path.Length).TrimStart([char[]]@("\", "/")).Replace("\", "/")
+                $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                ($hash + "  " + $relative)
+            }
+    )
+    Set-Content -LiteralPath $sumPath -Value ($sumLines -join [Environment]::NewLine) -Encoding ascii
+}
+
 function New-TestPackage {
     param([string]$Path)
 
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
     $names = @(Get-SkellMawPreviewPluginNames)
+    $plugins = @()
     foreach ($name in $names) {
         $bundle = Join-Path $Path ($name + ".vst3")
         $resources = Join-Path $bundle "Contents\Resources"
         $moduleDirectory = Join-Path $bundle "Contents\x86_64-win"
         New-Item -ItemType Directory -Path $resources -Force | Out-Null
         New-Item -ItemType Directory -Path $moduleDirectory -Force | Out-Null
-        Set-Content -LiteralPath (Join-Path $resources "moduleinfo.json") -Value "{}" -Encoding utf8
-        Set-Content -LiteralPath (Join-Path $moduleDirectory ($name + ".vst3")) -Value ("test-module-" + $name) -Encoding ascii
+
+        $processorCid = Get-TestClassId -Seed ($name + "|processor")
+        $controllerCid = Get-TestClassId -Seed ($name + "|controller")
+        $classIds = @($processorCid, $controllerCid) | Sort-Object
+        $moduleInfo = [ordered]@{
+            Name = $name
+            Version = "1.0.0"
+            "Factory Info" = [ordered]@{
+                Vendor = "Skell Audio"
+                URL = ""
+                "E-Mail" = ""
+            }
+            Classes = @(
+                [ordered]@{
+                    CID = $processorCid
+                    Category = "Audio Module Class"
+                    Name = $name
+                    Vendor = "Skell Audio"
+                    Version = "1.0.0"
+                },
+                [ordered]@{
+                    CID = $controllerCid
+                    Category = "Component Controller Class"
+                    Name = $name
+                    Vendor = "Skell Audio"
+                    Version = "1.0.0"
+                }
+            )
+        }
+        $moduleInfo | ConvertTo-Json -Depth 8 |
+            Set-Content -LiteralPath (Join-Path $resources "moduleinfo.json") -Encoding utf8
+        New-TestPeModule -Path (Join-Path $moduleDirectory ($name + ".vst3"))
+
+        $plugins += [ordered]@{
+            name = $name
+            version = "1.0.0"
+            class_ids = $classIds
+        }
     }
 
     $tools = Join-Path $Path "Tools"
@@ -46,9 +130,9 @@ function New-TestPackage {
     Set-Content -LiteralPath (Join-Path $Path "PREVIEW-ONLY.txt") -Value "Preview only." -Encoding utf8
     Set-Content -LiteralPath (Join-Path $Path "WINDOWS-VST3-INSTALL.txt") -Value "Private preview install and rollback guide." -Encoding utf8
 
-    $plugins = @($names | ForEach-Object { [ordered]@{ name = $_; version = "1.0.0" } })
     $info = [ordered]@{
         product = "Skell Maw"
+        vendor = "Skell Audio"
         release_status = "preview-only; not a commercial release"
         format = "VST3"
         platform = "Windows x86_64"
@@ -57,17 +141,7 @@ function New-TestPackage {
         plugins = $plugins
     }
     $info | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Path "build-info.json") -Encoding utf8
-
-    $sumLines = @(
-        Get-ChildItem -LiteralPath $Path -File -Force -Recurse |
-            Sort-Object -Property FullName |
-            ForEach-Object {
-                $relative = $_.FullName.Substring($Path.Length).TrimStart([char[]]@("\", "/")).Replace("\", "/")
-                $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-                ($hash + "  " + $relative)
-            }
-    )
-    Set-Content -LiteralPath (Join-Path $Path "SHA256SUMS.txt") -Value ($sumLines -join [Environment]::NewLine) -Encoding ascii
+    Update-TestPackageChecksums -Path $Path
 }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("SkellMawPreviewTests-" + [guid]::NewGuid().ToString("N"))
@@ -83,6 +157,27 @@ try {
 
     $package = Test-SkellMawPreviewPackage -PackagePath $packagePath
     Assert-True -Condition ($package.PluginNames.Count -eq 7) -Message "package validator accepts exactly seven preview bundles"
+
+    $metadataTamperedPath = Join-Path $tempRoot "metadata-tampered-package"
+    Copy-Item -LiteralPath $packagePath -Destination $metadataTamperedPath -Recurse
+    $badMetadataPath = Join-Path $metadataTamperedPath "Dark Forest.vst3\Contents\Resources\moduleinfo.json"
+    $badMetadata = Get-Content -LiteralPath $badMetadataPath -Raw | ConvertFrom-Json
+    $badMetadata.Name = "Wrong Plugin"
+    $badMetadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $badMetadataPath -Encoding utf8
+    Update-TestPackageChecksums -Path $metadataTamperedPath
+    Assert-Throws -Action { Test-SkellMawPreviewPackage -PackagePath $metadataTamperedPath } -Message "metadata identity mismatch is rejected even when package checksums are recomputed"
+
+    $wrongMachinePath = Join-Path $tempRoot "wrong-machine-package"
+    Copy-Item -LiteralPath $packagePath -Destination $wrongMachinePath -Recurse
+    New-TestPeModule -Path (Join-Path $wrongMachinePath "Constrictor.vst3\Contents\x86_64-win\Constrictor.vst3") -Machine 0x14c
+    Update-TestPackageChecksums -Path $wrongMachinePath
+    Assert-Throws -Action { Test-SkellMawPreviewPackage -PackagePath $wrongMachinePath } -Message "non-AMD64 VST3 module is rejected even when package checksums are recomputed"
+
+    $pe32Path = Join-Path $tempRoot "pe32-package"
+    Copy-Item -LiteralPath $packagePath -Destination $pe32Path -Recurse
+    New-TestPeModule -Path (Join-Path $pe32Path "Night Bloom.vst3\Contents\x86_64-win\Night Bloom.vst3") -Machine 0x8664 -OptionalMagic 0x10b
+    Update-TestPackageChecksums -Path $pe32Path
+    Assert-Throws -Action { Test-SkellMawPreviewPackage -PackagePath $pe32Path } -Message "PE32 rather than PE32+ VST3 module is rejected"
 
     $unexpectedBundle = Join-Path $packagePath "Unexpected.vst3"
     New-Item -ItemType Directory -Path $unexpectedBundle -Force | Out-Null

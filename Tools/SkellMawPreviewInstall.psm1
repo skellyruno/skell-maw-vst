@@ -83,6 +83,56 @@ function Get-SkellMawTreeHash {
     }
 }
 
+function Test-SkellMawAmd64Pe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::Read
+    )
+    $reader = [System.IO.BinaryReader]::new($stream)
+    try {
+        if ($stream.Length -lt 0x40) {
+            throw "VST3 module is too small to contain a valid PE header: $Path"
+        }
+        $dosMagic = [System.Text.Encoding]::ASCII.GetString($reader.ReadBytes(2))
+        if ($dosMagic -ne "MZ") {
+            throw "VST3 module is missing its DOS MZ header: $Path"
+        }
+
+        $stream.Position = 0x3c
+        $peOffset = $reader.ReadInt32()
+        if ($peOffset -lt 0x40 -or $peOffset -gt ($stream.Length - 26)) {
+            throw "VST3 module has an invalid PE header offset: $Path"
+        }
+
+        $stream.Position = $peOffset
+        $signature = [System.Text.Encoding]::ASCII.GetString($reader.ReadBytes(4))
+        if ($signature -ne ('PE' + [char]0 + [char]0)) {
+            throw "VST3 module is missing its PE signature: $Path"
+        }
+        $machine = $reader.ReadUInt16()
+        $stream.Position = $peOffset + 24
+        $optionalMagic = $reader.ReadUInt16()
+
+        if ($machine -ne 0x8664) {
+            throw ("VST3 module must be AMD64 (0x8664); found 0x{0:x4}: {1}" -f $machine, $Path)
+        }
+        if ($optionalMagic -ne 0x20b) {
+            throw ("VST3 module must use a PE32+ optional header (0x20b); found 0x{0:x4}: {1}" -f $optionalMagic, $Path)
+        }
+    }
+    finally {
+        $reader.Dispose()
+    }
+}
+
 function Test-SkellMawPreviewPackage {
     [CmdletBinding()]
     param(
@@ -141,11 +191,29 @@ function Test-SkellMawPreviewPackage {
         throw "Package must contain exactly the seven expected VST3 bundles; found: $($bundles -join ', ')"
     }
 
-    $metadataNames = @($info.plugins | ForEach-Object { [string]$_.name } | Sort-Object)
+    $pluginMetadata = @($info.plugins)
+    if ($pluginMetadata.Count -ne $expected.Count) {
+        throw "build-info.json must describe exactly seven VST3 plugins."
+    }
+    $metadataNames = @($pluginMetadata | ForEach-Object { [string]$_.name } | Sort-Object)
     if (($metadataNames -join [Environment]::NewLine) -ne ($expected -join [Environment]::NewLine)) {
         throw "build-info.json plugin inventory does not match the seven expected VST3 bundles."
     }
+    if ([string]::IsNullOrWhiteSpace([string]$info.vendor)) {
+        throw "Package vendor identity is missing."
+    }
 
+    $pluginInfoByName = @{}
+    foreach ($pluginInfo in $pluginMetadata) {
+        $pluginName = [string]$pluginInfo.name
+        if ($pluginInfoByName.ContainsKey($pluginName)) {
+            throw "build-info.json contains a duplicate plugin entry: $pluginName"
+        }
+        $pluginInfoByName[$pluginName] = $pluginInfo
+    }
+
+    $expectedCategories = @("Audio Module Class", "Component Controller Class") | Sort-Object
+    $seenClassIds = @{}
     foreach ($name in $script:ExpectedPluginNames) {
         $bundle = Join-Path $root ($name + ".vst3")
         $metadata = Join-Path $bundle "Contents\Resources\moduleinfo.json"
@@ -160,6 +228,70 @@ function Test-SkellMawPreviewPackage {
         if ($modules.Count -ne 1 -or $modules[0].Name -ne ($name + ".vst3")) {
             throw "Bundle must contain exactly one correctly named Windows VST3 module: $name"
         }
+
+        $pluginInfo = $pluginInfoByName[$name]
+        if ([string]$pluginInfo.version -ne [string]$info.version) {
+            throw "build-info.json version mismatch for plugin: $name"
+        }
+        $moduleInfo = Get-Content -LiteralPath $metadata -Raw -ErrorAction Stop |
+            ConvertFrom-Json -ErrorAction Stop
+        if ([string]$moduleInfo.Name -ne $name) {
+            throw "VST3 moduleinfo.json plugin name mismatch: $name"
+        }
+        if ([string]$moduleInfo.Version -ne [string]$info.version) {
+            throw "VST3 moduleinfo.json version mismatch: $name"
+        }
+        $factoryInfo = $moduleInfo.'Factory Info'
+        if ($null -eq $factoryInfo -or [string]$factoryInfo.Vendor -ne [string]$info.vendor) {
+            throw "VST3 moduleinfo.json vendor mismatch: $name"
+        }
+
+        $classes = @($moduleInfo.Classes)
+        if ($classes.Count -ne 2) {
+            throw "VST3 moduleinfo.json must contain exactly two classes: $name"
+        }
+        $localClassIds = @()
+        $categories = @()
+        foreach ($class in $classes) {
+            if ($null -eq $class) {
+                throw "VST3 moduleinfo.json contains an empty class entry: $name"
+            }
+            $category = [string]$class.Category
+            $classId = [string]$class.CID
+            if ($category -notin $expectedCategories) {
+                throw "VST3 moduleinfo.json contains an unexpected class category for $name"
+            }
+            if ($classId -notmatch '^[0-9A-Fa-f]{32}$') {
+                throw "VST3 moduleinfo.json contains an invalid class ID for $name"
+            }
+            if ([string]$class.Name -ne $name -or
+                [string]$class.Vendor -ne [string]$info.vendor -or
+                [string]$class.Version -ne [string]$info.version) {
+                throw "VST3 moduleinfo.json class identity mismatch: $name"
+            }
+            $normalizedClassId = $classId.ToUpperInvariant()
+            if ($seenClassIds.ContainsKey($normalizedClassId)) {
+                throw "Duplicate VST3 class ID across preview bundles: $normalizedClassId"
+            }
+            $seenClassIds[$normalizedClassId] = $name
+            $localClassIds += $normalizedClassId
+            $categories += $category
+        }
+
+        $actualCategories = @($categories | Sort-Object -Unique)
+        if (($actualCategories -join [Environment]::NewLine) -ne
+            ($expectedCategories -join [Environment]::NewLine)) {
+            throw "VST3 moduleinfo.json must contain one processor and one controller class: $name"
+        }
+        $expectedClassIds = @($pluginInfo.class_ids | ForEach-Object { ([string]$_).ToUpperInvariant() } | Sort-Object)
+        $actualClassIds = @($localClassIds | Sort-Object)
+        if ($expectedClassIds.Count -ne 2 -or
+            ($expectedClassIds -join [Environment]::NewLine) -ne
+            ($actualClassIds -join [Environment]::NewLine)) {
+            throw "VST3 moduleinfo.json class IDs do not match build-info.json: $name"
+        }
+
+        Test-SkellMawAmd64Pe -Path $modules[0].FullName
     }
 
     $sumPath = Join-Path $root "SHA256SUMS.txt"

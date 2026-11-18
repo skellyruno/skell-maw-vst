@@ -43,7 +43,7 @@ From the extracted package root, run:
 pwsh -NoProfile -File .\Tools\Install-SkellMawPreview.ps1 -PackagePath .
 ```
 
-The helper defaults to `%LOCALAPPDATA%\Programs\Common\VST3`, verifies package checksums, backs up existing bundles, and prints a rollback manifest path.
+The helper defaults to `%LOCALAPPDATA%\Programs\Common\VST3`, verifies package checksums, VST3 metadata/class-ID identity and Windows AMD64 PE32+ module headers, backs up existing bundles, and prints a rollback manifest path.
 Use `-ManifestPath <path>` with the same script to roll back. It refuses system-wide Program Files installs and refuses to overwrite bundles changed after installation.
 
 ## Layout

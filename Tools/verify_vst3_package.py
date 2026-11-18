@@ -199,7 +199,8 @@ SAFE PER-USER INSTALL
 3. Prefer the optional PowerShell 7 helper from the extracted package root:
    pwsh -NoProfile -File .\\Tools\\Install-SkellMawPreview.ps1 -PackagePath .
 4. The helper defaults to %LOCALAPPDATA%\\Programs\\Common\\VST3, validates the
-   seven-bundle inventory and SHA256SUMS.txt, backs up any existing same-named
+   seven-bundle inventory, VST3 metadata/class-ID identity, AMD64 PE32+ module
+   headers and SHA256SUMS.txt, backs up any existing same-named
    bundle, verifies the backup, and writes an install manifest.
 5. Close hosts before install, then rescan and test only in a disposable project.
    The helper refuses system-wide Program Files installs and refuses to overwrite
