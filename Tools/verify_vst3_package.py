@@ -459,7 +459,8 @@ def stage_package(
         preview_notice = (
             "Skell Maw Windows VST3 preview-only package with owner-approved commercial metadata.\n"
             "The owner-supplied approval manifest, LICENSE and third-party notice hashes were validated.\n"
-            "This remains preview-only, unsigned and unpublished; it does not authorize public distribution,\n            "payment processing, website deployment, or release publication.\n"
+            "This remains preview-only, unsigned and unpublished; it does not authorize public distribution,\n"
+            "payment processing, website deployment, or release publication.\n"
             "Use the per-user preview installer only for private engineering validation.\n"
         )
         release_section = (
