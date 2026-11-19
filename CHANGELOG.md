@@ -2,6 +2,8 @@
 
 ## 1.0.0 — source-quality update (2026-11-14, not a released binary)
 
+- Harden rollback manifests: reject reparse-point manifests/backups, machine-wide Program Files destinations, and backup paths that overlap the VST3 scan directory.
+
 - Night Bloom: smooth Bloom/Mix and Output automation over 10 ms, initialized from restored parameter values to avoid an unwanted preset-load fade. Automation progression remains identical on both audio channels.
 - Night Bloom: also smooth Above-frequency and Drive automation over 10 ms; refresh high-pass coefficients every eight samples to avoid block-boundary zippering without per-sample trigonometry.
 - Add paired-reference regression checks for the first 10 samples after frequency and Drive automation steps.
