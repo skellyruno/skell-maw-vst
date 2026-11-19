@@ -130,7 +130,8 @@ void MawEditor::paint (juce::Graphics& g)
     g.drawText (spec.name, juce::Rectangle<float> (W * 0.12f, H * 0.025f, W * 0.8f, H * 0.07f),
                 juce::Justification::centredLeft);
     g.setColour (accent);
-    g.setFont (Theme::font (W * 0.019f, true));
+    // Keep secondary text readable at the 420 px minimum editor size.
+    g.setFont (Theme::font (juce::jlimit (10.0f, 16.0f, W * 0.019f), true));
     g.drawText (spec.chapter.toUpperCase(), juce::Rectangle<float> (W * 0.12f, H * 0.088f, W * 0.8f, H * 0.03f),
                 juce::Justification::centredLeft);
 
@@ -141,7 +142,7 @@ void MawEditor::paint (juce::Graphics& g)
 
     // brand
     g.setColour (Theme::muted.withAlpha (0.8f));
-    g.setFont (Theme::font (W * 0.017f, false, true));
+    g.setFont (Theme::font (juce::jlimit (10.0f, 14.0f, W * 0.017f), false, true));
     g.drawText ("skell audio  -  " + spec.tagline, juce::Rectangle<float> (0.0f, H * 0.965f, W, H * 0.03f),
                 juce::Justification::centred);
 
@@ -153,7 +154,10 @@ void MawEditor::paint (juce::Graphics& g)
         g.drawRoundedRectangle (rr.reduced (2.0f), 14.0f, 1.6f);
 
         const juce::String txt = hero->getName (32) + "   " + hero->getCurrentValueAsText();
-        auto pill = juce::Rectangle<float> (rr.getCentreX() - 95.0f, rr.getCentreY() - 14.0f, 190.0f, 28.0f);
+        const float pillWidth = juce::jmin (190.0f, W - 16.0f);
+        const float pillX = juce::jlimit (8.0f, W - pillWidth - 8.0f, rr.getCentreX() - pillWidth * 0.5f);
+        const float pillY = juce::jlimit (8.0f, H - 36.0f, rr.getCentreY() - 14.0f);
+        auto pill = juce::Rectangle<float> (pillX, pillY, pillWidth, 28.0f);
         g.setColour (juce::Colours::black.withAlpha (0.75f));
         g.fillRoundedRectangle (pill, 14.0f);
         g.setColour (accent);
