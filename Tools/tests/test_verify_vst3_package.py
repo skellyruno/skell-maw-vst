@@ -1,9 +1,11 @@
 import hashlib
 import json
+import os
 import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -56,10 +58,16 @@ class PackageVerifierTests(unittest.TestCase):
             root = Path(temp)
             source, package = root / "source", root / "package"
             self.make_bundle(source, "Test Plugin")
-            report = stage_package(source, package, expected_plugins=("Test Plugin",))
+            with patch.dict(os.environ, {"MAW_PR_HEAD_SHA": "test-pr-head", "MAW_PR_HEAD_REF": "refs/heads/test-branch"}):
+                report = stage_package(source, package, expected_plugins=("Test Plugin",))
             self.assertEqual(report["plugins"][0]["name"], "Test Plugin")
+            self.assertEqual(report["pr_head_commit"], "test-pr-head")
+            self.assertEqual(report["pr_head_ref"], "refs/heads/test-branch")
             self.assertTrue((package / "build-info.json").is_file())
             self.assertTrue((package / "SHA256SUMS.txt").is_file())
+            manifest = json.loads((package / "build-info.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["pr_head_commit"], "test-pr-head")
+            self.assertEqual(manifest["pr_head_ref"], "refs/heads/test-branch")
             self.assertTrue((package / "PREVIEW-ONLY.txt").is_file())
             install_guide = package / "WINDOWS-VST3-INSTALL.txt"
             self.assertTrue(install_guide.is_file())

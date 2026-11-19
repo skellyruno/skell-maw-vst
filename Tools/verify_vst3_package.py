@@ -172,6 +172,8 @@ def stage_package(source_dir: Path, package_dir: Path, expected_plugins: tuple[s
         "format": "VST3", "platform": "Windows x86_64", "version": expected_version,
         "vendor": EXPECTED_VENDOR, "source_commit": os.environ.get("GITHUB_SHA", "local-unrecorded"),
         "source_ref": os.environ.get("GITHUB_REF", "local-unrecorded"),
+        "pr_head_commit": os.environ.get("MAW_PR_HEAD_SHA", os.environ.get("GITHUB_SHA", "local-unrecorded")),
+        "pr_head_ref": os.environ.get("MAW_PR_HEAD_REF", os.environ.get("GITHUB_REF", "local-unrecorded")),
         "workflow_run_id": os.environ.get("GITHUB_RUN_ID", "local-unrecorded"),
         "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", "local-unrecorded"),
         "install_helper": "Tools/Install-SkellMawPreview.ps1",
@@ -218,7 +220,7 @@ all scanned VST3 directories. Prefer the per-user VST3 directory above; do not r
 a known-good system-wide plugin copy during this private preview.
 
 INTEGRITY
-- build-info.json records source ref, commit, workflow run and expected plugins.
+- build-info.json records the build/merge commit and ref, PR head commit and ref, workflow run, and expected plugins.
 - SHA256SUMS.txt covers the staged plugin payloads and package sidecars (it does not
   checksum itself). Verify the ZIP digest and every listed file before installation.
 

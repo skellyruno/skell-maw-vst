@@ -41,6 +41,9 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File Tools/tests/test_preview_install.ps1
       - name: Stage and validate Windows VST3 bundles
+        env:
+          MAW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          MAW_PR_HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: python Tools/verify_vst3_package.py --source-dir build --package-dir package
       - name: Validate Dark Forest VST3 with pluginval
         uses: Tracktion/pluginval/validate@v2.0.0-beta3
