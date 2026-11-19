@@ -161,7 +161,8 @@ try {
     # Commercial metadata must remain an installable private preview until signing/publication.
     # These are synthetic test fixtures only; no real owner license or contact data is supplied.
     $commercialCandidatePath = Join-Path $tempRoot "commercial-candidate-package"
-    Copy-Item -LiteralPath $packagePath -Destination $commercialCandidatePath -Recurse
+    New-Item -ItemType Directory -Path $commercialCandidatePath -Force | Out-Null
+    Get-ChildItem -LiteralPath $packagePath -Force | Copy-Item -Destination $commercialCandidatePath -Recurse -Force
     $commercialInfoPath = Join-Path $commercialCandidatePath "build-info.json"
     $commercialInfo = Get-Content -LiteralPath $commercialInfoPath -Raw | ConvertFrom-Json
     $commercialInfo.release_status = "preview-only; not a commercial release"
