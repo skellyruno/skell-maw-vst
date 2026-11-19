@@ -158,6 +158,35 @@ try {
     $package = Test-SkellMawPreviewPackage -PackagePath $packagePath
     Assert-True -Condition ($package.PluginNames.Count -eq 7) -Message "package validator accepts exactly seven preview bundles"
 
+    # Commercial metadata must remain an installable private preview until signing/publication.
+    # These are synthetic test fixtures only; no real owner license or contact data is supplied.
+    $commercialCandidatePath = Join-Path $tempRoot "commercial-candidate-package"
+    Copy-Item -LiteralPath $packagePath -Destination $commercialCandidatePath -Recurse
+    $commercialInfoPath = Join-Path $commercialCandidatePath "build-info.json"
+    $commercialInfo = Get-Content -LiteralPath $commercialInfoPath -Raw | ConvertFrom-Json
+    $commercialInfo.release_status = "preview-only; not a commercial release"
+    $commercialInfo.commercial_candidate = $true
+    $commercialInfo | ConvertTo-Json -Depth 12 |
+        Set-Content -LiteralPath $commercialInfoPath -Encoding utf8
+    foreach ($pluginName in (Get-SkellMawPreviewPluginNames)) {
+        $moduleInfoPath = Join-Path $commercialCandidatePath ($pluginName + ".vst3\Contents\Resources\moduleinfo.json")
+        $moduleInfo = Get-Content -LiteralPath $moduleInfoPath -Raw | ConvertFrom-Json
+        $moduleInfo.'Factory Info'.URL = "https://example.invalid/skell"
+        $moduleInfo.'Factory Info'.'E-Mail' = "release@example.invalid"
+        $moduleInfo | ConvertTo-Json -Depth 8 |
+            Set-Content -LiteralPath $moduleInfoPath -Encoding utf8
+    }
+    $noticePath = Join-Path $commercialCandidatePath "THIRD_PARTY_NOTICES\juce\LICENSE.txt"
+    New-Item -ItemType Directory -Path (Split-Path -Parent $noticePath) -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $commercialCandidatePath "LICENSE") -Value "Synthetic test-only owner license." -Encoding utf8
+    Set-Content -LiteralPath $noticePath -Value "Synthetic test-only dependency notice." -Encoding utf8
+    Update-TestPackageChecksums -Path $commercialCandidatePath
+    $commercialPackage = Test-SkellMawPreviewPackage -PackagePath $commercialCandidatePath
+    Assert-True -Condition ($commercialPackage.Info.commercial_candidate -eq $true) -Message "preview installer accepts an explicitly marked private commercial candidate"
+    Assert-True -Condition ($commercialPackage.Info.release_status -eq "preview-only; not a commercial release") -Message "commercial candidate remains preview-only for the existing installer"
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $commercialCandidatePath "LICENSE") -PathType Leaf) -Message "commercial candidate carries its owner license"
+    Assert-True -Condition (Test-Path -LiteralPath $noticePath -PathType Leaf) -Message "commercial candidate carries third-party notices"
+
     $metadataTamperedPath = Join-Path $tempRoot "metadata-tampered-package"
     Copy-Item -LiteralPath $packagePath -Destination $metadataTamperedPath -Recurse
     $badMetadataPath = Join-Path $metadataTamperedPath "Dark Forest.vst3\Contents\Resources\moduleinfo.json"
