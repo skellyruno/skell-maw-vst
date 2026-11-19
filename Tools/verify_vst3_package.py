@@ -221,7 +221,7 @@ def load_commercial_approval(manifest_path: Path, expected_version: str = EXPECT
         if not isinstance(package_path, str) or not package_path.strip() or "\\" in package_path:
             raise PackageValidationError(f"third_party_notices[{index}].package_path must be a safe relative POSIX path")
         rel = PurePosixPath(package_path)
-        if rel.is_absolute() or any(part in ("", ".", "..") for part in rel.parts) or ":" in package_path:
+        if not rel.parts or rel.is_absolute() or any(part in ("", ".", "..") for part in rel.parts) or ":" in package_path:
             raise PackageValidationError(f"third_party_notices[{index}].package_path contains an unsafe path")
         normalized_package_path = rel.as_posix()
         if normalized_package_path.casefold() in package_paths:
