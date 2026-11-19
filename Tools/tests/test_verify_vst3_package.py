@@ -5,11 +5,16 @@ import struct
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from Tools.verify_vst3_package import PackageValidationError, remove_trailing_commas, stage_package
+from Tools.verify_vst3_package import (
+    PackageValidationError,
+    remove_trailing_commas,
+    stage_package,
+    strict_json_loads,
+)
 
 
 class PackageVerifierTests(unittest.TestCase):
@@ -31,7 +36,8 @@ class PackageVerifierTests(unittest.TestCase):
         if cids is None:
             cids = ["ABCDEF019182FAEB536B4175446B4672", "ABCDEF011234ABCD536B4175446B4672"]
         metadata = {
-            "Name": name, "Version": "1.0.0",
+            "Name": name,
+            "Version": "1.0.0",
             "Factory Info": {"Vendor": "Skell Audio", "URL": "", "E-Mail": ""},
             "Classes": [
                 {"CID": cids[0], "Category": "Audio Module Class", "Name": name, "Vendor": "Skell Audio", "Version": "1.0.0"},
@@ -43,8 +49,53 @@ class PackageVerifierTests(unittest.TestCase):
         self.make_pe(module, machine, optional_magic)
         return bundle
 
+    def make_approval_manifest(
+        self,
+        root: Path,
+        *,
+        status: str = "approved",
+        vendor_name: str = "Skell Audio",
+        vendor_url: str = "https://example.invalid/skell",
+        support_email: str = "release@example.invalid",
+    ) -> Path:
+        license_path = root / "owner-approved-license.txt"
+        license_path.write_text("Temporary unit-test license fixture; not a real Skell license.\n", encoding="utf-8")
+        notice_path = root / "notices" / "juce" / "LICENSE.txt"
+        notice_path.parent.mkdir(parents=True, exist_ok=True)
+        notice_path.write_text("Temporary unit-test third-party notice fixture.\n", encoding="utf-8")
+        approval = {
+            "product": "Skell Maw",
+            "version": "1.0.0",
+            "status": status,
+            "approved_by": "skellyruno",
+            "approved_at": "2026-11-19T12:00:00Z",
+            "approval_reference": "TEST-APPROVAL-ONLY",
+            "vendor_name": vendor_name,
+            "vendor_url": vendor_url,
+            "support_email": support_email,
+            "license_file": "owner-approved-license.txt",
+            "license_sha256": hashlib.sha256(license_path.read_bytes()).hexdigest(),
+            "third_party_notices": [
+                {
+                    "source": "notices/juce/LICENSE.txt",
+                    "package_path": "juce/LICENSE.txt",
+                    "sha256": hashlib.sha256(notice_path.read_bytes()).hexdigest(),
+                }
+            ],
+        }
+        manifest = root / "commercial-approval-test.json"
+        manifest.write_text(json.dumps(approval, indent=2), encoding="utf-8")
+        return manifest
+
+    def checksum_map(self, package: Path) -> dict[str, str]:
+        result = {}
+        for line in (package / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+            digest, filename = line.split("  ", 1)
+            result[filename] = digest
+        return result
+
     def test_trailing_comma_removal_is_string_aware(self):
-        raw = '{"text":"literal ,} and \\"quoted\\"","nested":[1,2,],}'
+        raw = '{"text":"literal ,} and \\\\"quoted\\\\"","nested":[1,2,],}'
         parsed = json.loads(remove_trailing_commas(raw))
         self.assertEqual(parsed["text"], 'literal ,} and "quoted"')
         self.assertEqual(parsed["nested"], [1, 2])
@@ -52,6 +103,45 @@ class PackageVerifierTests(unittest.TestCase):
     def test_unterminated_string_is_rejected(self):
         with self.assertRaises(PackageValidationError):
             remove_trailing_commas('{"broken":"value}')
+
+    def test_strict_json_rejects_duplicate_keys_and_non_finite_numbers(self):
+        with self.assertRaisesRegex(PackageValidationError, "duplicate JSON key"):
+            strict_json_loads('{"Factory Info":{"Vendor":"Skell Audio","Vendor":"Other"}}')
+        with self.assertRaisesRegex(PackageValidationError, "non-standard JSON numeric constant"):
+            strict_json_loads('{"Version":NaN}')
+
+    def test_bundle_metadata_rejects_duplicate_keys(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bundle = self.make_bundle(root / "source", "Test Plugin")
+            metadata_path = bundle / "Contents" / "Resources" / "moduleinfo.json"
+            raw = metadata_path.read_text(encoding="utf-8")
+            raw = raw.replace('"Name": "Test Plugin",', '"Name": "Wrong",\n  "Name": "Test Plugin",', 1)
+            metadata_path.write_text(raw, encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "duplicate JSON key"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
+
+    def test_bundle_metadata_rejects_non_object_factory_info(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bundle = self.make_bundle(root / "source", "Test Plugin")
+            metadata_path = bundle / "Contents" / "Resources" / "moduleinfo.json"
+            metadata = json.loads(remove_trailing_commas(metadata_path.read_text(encoding="utf-8")))
+            metadata["Factory Info"] = []
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "Factory Info must be an object"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
+
+    def test_bundle_metadata_rejects_non_finite_numbers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bundle = self.make_bundle(root / "source", "Test Plugin")
+            metadata_path = bundle / "Contents" / "Resources" / "moduleinfo.json"
+            raw = remove_trailing_commas(metadata_path.read_text(encoding="utf-8"))
+            raw = raw.replace('"Version": "1.0.0"', '"Version": NaN', 1)
+            metadata_path.write_text(raw, encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "non-standard JSON numeric constant"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",))
 
     def test_stages_valid_bundle_and_writes_provenance(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -76,16 +166,11 @@ class PackageVerifierTests(unittest.TestCase):
             self.assertIn(b"\n", guide_bytes)
             self.assertNotIn(b"\r\n", guide_bytes)
             self.assertIn("ROLLBACK", guide_text)
-            self.assertIn("private preview material", guide_text.lower())
-            self.assertIn("not a commercial release", guide_text.lower())
+            self.assertIn("private engineering material", guide_text.lower())
+            self.assertIn("not a signed installer", guide_text.lower())
             self.assertIn("VST3 metadata/class-ID identity", guide_text)
             self.assertIn("AMD64 PE32+ module", guide_text)
-            # Manifest lines are "<sha256>  <relative-path>"; key by path so
-            # the assertion verifies the guide's own digest, not the reverse map.
-            checksum_lines = {}
-            for line in (package / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
-                digest, filename = line.split("  ", 1)
-                checksum_lines[filename] = digest
+            checksum_lines = self.checksum_map(package)
             self.assertEqual(
                 hashlib.sha256(install_guide.read_bytes()).hexdigest(),
                 checksum_lines["WINDOWS-VST3-INSTALL.txt"],
@@ -96,6 +181,92 @@ class PackageVerifierTests(unittest.TestCase):
             self.assertIn("Tools/Install-SkellMawPreview.ps1", checksum_lines)
             self.assertIn("Tools/SkellMawPreviewInstall.psm1", checksum_lines)
             self.assertEqual(staged["Name"], "Test Plugin")
+            self.assertEqual(manifest["release_status"], "preview-only; not a commercial release")
+            self.assertIn("vendor URL is blank", manifest["plugins"][0]["metadata_warnings"][0])
+
+    def test_commercial_mode_requires_an_approval_manifest(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root / "source", "Test Plugin")
+            with self.assertRaisesRegex(PackageValidationError, "requires --approval-manifest"):
+                stage_package(root / "source", root / "package", expected_plugins=("Test Plugin",), commercial_release=True)
+            self.assertFalse((root / "package").exists())
+
+    def test_commercial_mode_rejects_pending_owner_approval(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root / "source", "Test Plugin")
+            approval = self.make_approval_manifest(root, status="pending")
+            with self.assertRaisesRegex(PackageValidationError, "explicit approved record"):
+                stage_package(
+                    root / "source",
+                    root / "package",
+                    expected_plugins=("Test Plugin",),
+                    commercial_release=True,
+                    approval_manifest=approval,
+                )
+            self.assertFalse((root / "package").exists())
+
+    def test_commercial_mode_rejects_vendor_mismatch_and_bad_contact(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root / "source", "Test Plugin")
+            approval = self.make_approval_manifest(root, vendor_name="Skelly Audio")
+            with self.assertRaisesRegex(PackageValidationError, "does not match the compiled VST3 identity"):
+                stage_package(root / "source", root / "package-vendor", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
+            approval = self.make_approval_manifest(root, vendor_url="http://example.invalid", support_email="not-an-email")
+            with self.assertRaisesRegex(PackageValidationError, "vendor_url must be an HTTPS URL"):
+                stage_package(root / "source", root / "package-contact", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
+
+    def test_commercial_candidate_copies_and_hashes_owner_legal_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, package = root / "source", root / "package"
+            self.make_bundle(source, "Test Plugin")
+            approval = self.make_approval_manifest(root)
+            report = stage_package(
+                source,
+                package,
+                expected_plugins=("Test Plugin",),
+                commercial_release=True,
+                approval_manifest=approval,
+            )
+            self.assertEqual(report["release_status"], "private-commercial-candidate; unsigned and unpublished")
+            manifest = json.loads((package / "build-info.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["commercial_approval"]["approval_reference"], "TEST-APPROVAL-ONLY")
+            self.assertEqual(manifest["commercial_approval"]["approved_by"], "skellyruno")
+            self.assertEqual(manifest["plugins"][0]["metadata_warnings"], [])
+            self.assertTrue((package / "LICENSE").is_file())
+            self.assertTrue((package / "THIRD_PARTY_NOTICES/juce/LICENSE.txt").is_file())
+            self.assertEqual((package / "LICENSE").read_text(encoding="utf-8"), (root / "owner-approved-license.txt").read_text(encoding="utf-8"))
+            staged_metadata = json.loads((package / "Test Plugin.vst3/Contents/Resources/moduleinfo.json").read_text(encoding="utf-8"))
+            self.assertEqual(staged_metadata["Factory Info"]["URL"], "https://example.invalid/skell")
+            self.assertEqual(staged_metadata["Factory Info"]["E-Mail"], "release@example.invalid")
+            self.assertIn("unsigned and unpublished", (package / "PREVIEW-ONLY.txt").read_text(encoding="utf-8"))
+            self.assertIn("not a cryptographic signature", (package / "WINDOWS-VST3-INSTALL.txt").read_text(encoding="utf-8"))
+            checksum_lines = self.checksum_map(package)
+            for relative in ("LICENSE", "THIRD_PARTY_NOTICES/juce/LICENSE.txt"):
+                self.assertEqual(hashlib.sha256((package / relative).read_bytes()).hexdigest(), checksum_lines[relative])
+
+    def test_commercial_candidate_rejects_tampered_license(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            self.make_bundle(source, "Test Plugin")
+            approval = self.make_approval_manifest(root)
+            (root / "owner-approved-license.txt").write_text("changed after approval\n", encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "LICENSE SHA-256 does not match"):
+                stage_package(source, root / "package", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
+
+    def test_commercial_candidate_rejects_duplicate_manifest_keys(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            self.make_bundle(source, "Test Plugin")
+            approval = self.make_approval_manifest(root)
+            approval.write_text('{"product":"Skell Maw","product":"Skell Maw"}', encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "duplicate JSON key"):
+                stage_package(source, root / "package", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
 
     def test_refuses_to_overwrite_existing_package(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -105,10 +276,8 @@ class PackageVerifierTests(unittest.TestCase):
             package.mkdir()
             sentinel = package / "keep.txt"
             sentinel.write_text("known-good package", encoding="utf-8")
-
             with self.assertRaisesRegex(PackageValidationError, "choose a new output path"):
                 stage_package(source, package, expected_plugins=("Test Plugin",))
-
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "known-good package")
             self.assertEqual(sorted(path.name for path in package.iterdir()), ["keep.txt"])
 
