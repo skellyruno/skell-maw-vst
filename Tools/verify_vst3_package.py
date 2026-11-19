@@ -415,11 +415,8 @@ def stage_package(
 
     info = {
         "product": "Skell Maw",
-        "release_status": (
-            "private-commercial-candidate; unsigned and unpublished"
-            if commercial_metadata is not None
-            else "preview-only; not a commercial release"
-        ),
+        "release_status": "preview-only; not a commercial release",
+        "commercial_candidate": commercial_metadata is not None,
         "format": "VST3",
         "platform": "Windows x86_64",
         "version": expected_version,
@@ -460,10 +457,9 @@ def stage_package(
         title = "SKELL MAW 1.0.0 — WINDOWS x64 VST3 PRIVATE PREVIEW"
     else:
         preview_notice = (
-            "Skell Maw Windows VST3 private commercial candidate.\n"
+            "Skell Maw Windows VST3 preview-only package with owner-approved commercial metadata.\n"
             "The owner-supplied approval manifest, LICENSE and third-party notice hashes were validated.\n"
-            "This package is unsigned and unpublished. It does not authorize public distribution,\n"
-            "payment processing, website deployment, or release publication.\n"
+            "This remains preview-only, unsigned and unpublished; it does not authorize public distribution,\n            "payment processing, website deployment, or release publication.\n"
             "Use the per-user preview installer only for private engineering validation.\n"
         )
         release_section = (
