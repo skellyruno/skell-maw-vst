@@ -134,6 +134,7 @@ function New-TestPackage {
         product = "Skell Maw"
         vendor = "Skell Audio"
         release_status = "preview-only; not a commercial release"
+        commercial_candidate = $false
         format = "VST3"
         platform = "Windows x86_64"
         version = "1.0.0"
