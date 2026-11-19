@@ -47,6 +47,78 @@ static void testConstrictor()
 }
 static void testNightBloom()
 {
+    // Compare the first samples after automation with an unchanged reference instance.
+    // A block-edge coefficient/drive jump is immediately visible as a large deviation.
+    const auto runSegment = [] (Rig& rig, int startSample, int count)
+    {
+        std::vector<std::vector<float>> out (2, std::vector<float> ((size_t) count));
+        for (int offset = 0; offset < count; offset += 512)
+        {
+            const int block = std::min (512, count - offset);
+            juce::AudioBuffer<float> b (2, block);
+            for (int c = 0; c < 2; ++c)
+                for (int i = 0; i < block; ++i)
+                    b.getWritePointer (c)[i] = sine (c, startSample + offset + i, 0.5f);
+            juce::MidiBuffer m;
+            rig.p->processBlock (b, m);
+            for (int c = 0; c < 2; ++c)
+                for (int i = 0; i < block; ++i)
+                    out[(size_t) c][(size_t) (offset + i)] = b.getReadPointer (c)[i];
+        }
+        return out;
+    };
+    const auto maxDelta = [] (const std::vector<std::vector<float>>& a,
+                              const std::vector<std::vector<float>>& b)
+    {
+        float result = 0.0f;
+        for (size_t c = 0; c < a.size(); ++c)
+            for (size_t i = 0; i < a[c].size(); ++i)
+                result = std::max (result, std::abs (a[c][i] - b[c][i]));
+        return result;
+    };
+
+    {
+        Rig changing, reference;
+        for (auto* rig : { &changing, &reference })
+        {
+            rig->p->set ("amount", 1.0f);
+            rig->p->set ("freq", 1000.0f);
+            rig->p->set ("drive", 12.0f);
+            rig->p->prepareToPlay (SR, 512);
+        }
+        (void) runSegment (changing, 0, 4410);
+        (void) runSegment (reference, 0, 4410);
+        changing.p->set ("freq", 12000.0f);
+        const auto actual = runSegment (changing, 4410, 10);
+        const auto unchanged = runSegment (reference, 4410, 10);
+        const float delta = maxDelta (actual, unchanged);
+        std::printf ("  frequency automation first-10-sample deviation %.4f\n", delta);
+        CHECK (delta < 0.05f, "frequency automation stepped at block boundary (%.4f)", delta);
+        const auto settled = runSegment (changing, 4420, 431);
+        const auto settledReference = runSegment (reference, 4420, 431);
+        CHECK (maxDelta (settled, settledReference) > 0.05f, "frequency automation did not reach target");
+    }
+    {
+        Rig changing, reference;
+        for (auto* rig : { &changing, &reference })
+        {
+            rig->p->set ("amount", 1.0f);
+            rig->p->set ("freq", 1000.0f);
+            rig->p->set ("drive", 0.0f);
+            rig->p->prepareToPlay (SR, 512);
+        }
+        (void) runSegment (changing, 0, 4410);
+        (void) runSegment (reference, 0, 4410);
+        changing.p->set ("drive", 24.0f);
+        const auto actual = runSegment (changing, 4410, 10);
+        const auto unchanged = runSegment (reference, 4410, 10);
+        const float delta = maxDelta (actual, unchanged);
+        std::printf ("  drive automation first-10-sample deviation %.4f\n", delta);
+        CHECK (delta < 0.05f, "drive automation stepped at block boundary (%.4f)", delta);
+        const auto settled = runSegment (changing, 4420, 431);
+        const auto settledReference = runSegment (reference, 4420, 431);
+        CHECK (maxDelta (settled, settledReference) > 0.05f, "drive automation did not reach target");
+    }
     // Settings restored before prepare should be active immediately, with no hidden fade.
     { Rig r; r.p->set ("amount", 0); r.p->prepareToPlay (SR, 512);
       auto o = run (r, 8000, 512, sine, 0.5f);
