@@ -41,32 +41,50 @@ namespace
 
             // Parameter automation must not step the harmonic layer or master gain.
             // Initialize from the restored state, so loading an existing preset adds no fade.
+            // Smooth every audio-path control from the restored state, so preset recall adds no fade.
             bloomSm.reset (sampleRate, 0.01);
             outputSm.reset (sampleRate, 0.01);
+            freqSm.reset (sampleRate, 0.01);
+            driveSm.reset (sampleRate, 0.01);
             bloomSm.setCurrentAndTargetValue (getParam ("amount") * getParam ("mix") * 0.75f);
             outputSm.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (getParam ("output")));
+            freqSm.setCurrentAndTargetValue (getParam ("freq"));
+            driveSm.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (getParam ("drive")));
+            freqUpdateCountdown = 0;
+            for (auto& f : hpIn)  f.setHighpass (sampleRate, freqSm.getCurrentValue());
+            for (auto& f : hpOut) f.setHighpass (sampleRate, freqSm.getCurrentValue());
         }
 
         void process (juce::AudioBuffer<float>& buffer) override
         {
             const int n = buffer.getNumSamples();
             const int nCh = juce::jmin (2, buffer.getNumChannels());
-            const float freq = getParam ("freq");
-            const float drive = juce::Decibels::decibelsToGain (getParam ("drive"));
+            freqSm.setTargetValue (getParam ("freq"));
+            driveSm.setTargetValue (juce::Decibels::decibelsToGain (getParam ("drive")));
             bloomSm.setTargetValue (getParam ("amount") * getParam ("mix") * 0.75f);
             outputSm.setTargetValue (juce::Decibels::decibelsToGain (getParam ("output")));
             float peak = 0.0f;
 
-            for (int c = 0; c < nCh; ++c)
-            {
-                hpIn[c].setHighpass (sr, freq);
-                hpOut[c].setHighpass (sr, freq);
-            }
-
-            // Advance the smoothers once per sample, not once per channel. Both channels
-            // receive precisely the same automation trajectory and keep their stereo image.
+            // The cutoff follows a 10 ms ramp. Recompute coefficients every eight samples:
+            // this avoids a block-edge jump without doing trigonometry for every audio sample.
             for (int i = 0; i < n; ++i)
             {
+                const float freq = freqSm.getNextValue();
+                if (freqUpdateCountdown == 0)
+                {
+                    for (int c = 0; c < nCh; ++c)
+                    {
+                        hpIn[c].setHighpass (sr, freq);
+                        hpOut[c].setHighpass (sr, freq);
+                    }
+                    freqUpdateCountdown = kFrequencyUpdateInterval - 1;
+                }
+                else
+                {
+                    --freqUpdateCountdown;
+                }
+
+                const float drive = driveSm.getNextValue();
                 const float bloom = bloomSm.getNextValue();
                 const float gain = outputSm.getNextValue();
                 for (int c = 0; c < nCh; ++c)
@@ -84,8 +102,10 @@ namespace
         }
 
     private:
+        static constexpr int kFrequencyUpdateInterval = 8;
         maw::Biquad hpIn[2], hpOut[2];
-        juce::SmoothedValue<float> bloomSm, outputSm;
+        juce::SmoothedValue<float> bloomSm, outputSm, freqSm, driveSm;
+        int freqUpdateCountdown = 0;
     };
 }
 

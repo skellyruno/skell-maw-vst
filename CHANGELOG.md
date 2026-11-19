@@ -3,6 +3,8 @@
 ## 1.0.0 — source-quality update (2026-11-14, not a released binary)
 
 - Night Bloom: smooth Bloom/Mix and Output automation over 10 ms, initialized from restored parameter values to avoid an unwanted preset-load fade. Automation progression remains identical on both audio channels.
+- Night Bloom: also smooth Above-frequency and Drive automation over 10 ms; refresh high-pass coefficients every eight samples to avoid block-boundary zippering without per-sample trigonometry.
+- Add paired-reference regression checks for the first 10 samples after frequency and Drive automation steps.
 - Butterfly Delay: cap flutter depth to 45% of short delay times to avoid modulation requesting negative/zero-delay reads.
 - Dark Forest: reserve at least one wet-buffer sample even if a host reports a zero maximum block size. Full JUCE/host verification is pending.
 - Add a `MAW_DSP_TESTS_ONLY=ON` CMake/CTest route to compile real DSP sources against the existing JUCE shim without network access.
