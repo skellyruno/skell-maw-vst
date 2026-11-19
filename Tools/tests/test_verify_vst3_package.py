@@ -258,6 +258,18 @@ class PackageVerifierTests(unittest.TestCase):
             with self.assertRaisesRegex(PackageValidationError, "LICENSE SHA-256 does not match"):
                 stage_package(source, root / "package", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
 
+    def test_commercial_candidate_rejects_empty_notice_package_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            self.make_bundle(source, "Test Plugin")
+            approval = self.make_approval_manifest(root)
+            data = json.loads(approval.read_text(encoding="utf-8"))
+            data["third_party_notices"][0]["package_path"] = "."
+            approval.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(PackageValidationError, "package_path contains an unsafe path"):
+                stage_package(source, root / "package", expected_plugins=("Test Plugin",), commercial_release=True, approval_manifest=approval)
+
     def test_commercial_candidate_rejects_duplicate_manifest_keys(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
