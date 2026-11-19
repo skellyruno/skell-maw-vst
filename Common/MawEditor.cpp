@@ -315,15 +315,18 @@ void MawEditor::resized()
     {
         const int cell = juce::jmin ((int) ((float) S * 0.92f / (float) n), (int) ((float) S * 0.17f));
         const int sliderH = (int) ((float) cell * 1.12f);
+        const int labelH = 18;
         const int startX = sq.getX() + (S - cell * n) / 2;
-        const int y = sq.getY() + (int) ((float) S * 0.952f) - 16 - sliderH;
+        const int rowBottom = sq.getY() + (int) ((float) S * 0.952f);
+        const int y = rowBottom - labelH - sliderH;
         const int boxW = (int) ((float) cell * 0.80f);
         for (int i = 0; i < n; ++i)
         {
             auto& k = knobs[(size_t) i];
             k.slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, boxW, 18);
             k.slider->setBounds (startX + i * cell, y, cell, sliderH);
-            k.label->setBounds (startX + i * cell, y + sliderH - 2, cell, 18);
+            // Keep the parameter name directly below the numeric value box without overlap.
+            k.label->setBounds (startX + i * cell, y + sliderH, cell, labelH);
         }
     }
 
