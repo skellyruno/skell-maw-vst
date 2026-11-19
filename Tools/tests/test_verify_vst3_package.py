@@ -231,10 +231,13 @@ class PackageVerifierTests(unittest.TestCase):
                 commercial_release=True,
                 approval_manifest=approval,
             )
-            self.assertEqual(report["release_status"], "private-commercial-candidate; unsigned and unpublished")
+            self.assertEqual(report["release_status"], "preview-only; not a commercial release")
+            self.assertTrue(report["commercial_candidate"])
             manifest = json.loads((package / "build-info.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["commercial_approval"]["approval_reference"], "TEST-APPROVAL-ONLY")
             self.assertEqual(manifest["commercial_approval"]["approved_by"], "skellyruno")
+            self.assertEqual(manifest["release_status"], "preview-only; not a commercial release")
+            self.assertTrue(manifest["commercial_candidate"])
             self.assertEqual(manifest["plugins"][0]["metadata_warnings"], [])
             self.assertTrue((package / "LICENSE").is_file())
             self.assertTrue((package / "THIRD_PARTY_NOTICES/juce/LICENSE.txt").is_file())
