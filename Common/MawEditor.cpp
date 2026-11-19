@@ -130,7 +130,8 @@ void MawEditor::paint (juce::Graphics& g)
     g.drawText (spec.name, juce::Rectangle<float> (W * 0.12f, H * 0.025f, W * 0.8f, H * 0.07f),
                 juce::Justification::centredLeft);
     g.setColour (accent);
-    g.setFont (Theme::font (W * 0.019f, true));
+    // Keep secondary text readable at the 420 px minimum editor size.
+    g.setFont (Theme::font (juce::jlimit (10.0f, 16.0f, W * 0.019f), true));
     g.drawText (spec.chapter.toUpperCase(), juce::Rectangle<float> (W * 0.12f, H * 0.088f, W * 0.8f, H * 0.03f),
                 juce::Justification::centredLeft);
 
@@ -141,7 +142,7 @@ void MawEditor::paint (juce::Graphics& g)
 
     // brand
     g.setColour (Theme::muted.withAlpha (0.8f));
-    g.setFont (Theme::font (W * 0.017f, false, true));
+    g.setFont (Theme::font (juce::jlimit (10.0f, 14.0f, W * 0.017f), false, true));
     g.drawText ("skell audio  -  " + spec.tagline, juce::Rectangle<float> (0.0f, H * 0.965f, W, H * 0.03f),
                 juce::Justification::centred);
 
