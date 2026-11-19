@@ -14,7 +14,7 @@ jobs:
   dsp_tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Configure JUCE-free DSP regression tests
         run: cmake -S . -B build-dsp -DCMAKE_BUILD_TYPE=Release -DMAW_DSP_TESTS_ONLY=ON
       - name: Compile DSP tests
@@ -27,8 +27,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Configure Windows VST3 collection
@@ -88,7 +88,7 @@ jobs:
           strictness-level: 5
           pluginval-version: v2.0.0-beta3
       - name: Upload verified preview package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SkellMaw-Windows-VST3
           path: package/

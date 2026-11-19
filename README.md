@@ -46,6 +46,14 @@ pwsh -NoProfile -File .\Tools\Install-SkellMawPreview.ps1 -PackagePath .
 The helper defaults to `%LOCALAPPDATA%\Programs\Common\VST3`, verifies package checksums, VST3 metadata/class-ID identity and Windows AMD64 PE32+ module headers, backs up existing bundles, and prints a rollback manifest path.
 Use `-ManifestPath <path>` with the same script to roll back. It refuses system-wide Program Files installs and refuses to overwrite bundles changed after installation.
 
+### Manual owner-controlled commercial-candidate gate
+
+The normal GitHub Actions workflow always produces a private preview. It does not create a commercial package.
+
+A separate local/manual invocation may stage a **private, unsigned and unpublished commercial candidate** only when the owner supplies `--commercial-release` and `--approval-manifest <path>` to `Tools/verify_vst3_package.py`. The manifest must explicitly record the approved product/version, `approved_by: skellyruno`, timezone-aware `approved_at`, an approval reference, the compiled vendor name, HTTPS vendor URL, support email, a relative `LICENSE` path and SHA-256, plus one or more relative third-party notice paths, package paths and SHA-256 digests.
+
+All legal files are copied into the staged candidate and included in `SHA256SUMS.txt`; vendor URL and support email are written only into the staged VST3 metadata. Missing, mismatched, tampered or ambiguous approval inputs fail closed. The manifest is a declared owner approval record, **not a cryptographic signature**. This command does not sign, publish, deploy a website, process payments, or bypass FL Studio/audio acceptance and final release approval. Do not commit private approval manifests or owner legal files to the repository. The candidate's `build-info.json` deliberately keeps `release_status: preview-only; not a commercial release`, so the existing per-user preview installer remains the only install path; commercial metadata does not make it a public or signed release.
+
 ## Layout
 
 ```
@@ -55,7 +63,7 @@ Common/                  shared library used by all plugins
   MawProcessorBase.*     APVTS built from the spec, state, level metering
   MawEditor.*            art-based editor: knobs, dropdowns, hero drag, glow
   MawLookAndFeel.*       rotary knobs, pill toggle, popup menu
-  DspUtil.h              delay line, one-pole, biquad
+  DspUtil.h               delay line, one-pole, biquad
 Plugins/<Name>/<Name>.cpp   spec + DSP for each plugin (~100 lines each)
 ```
 
@@ -74,7 +82,7 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 
 ## Status and known limits
 
-- Windows x64 VST3 build, package verification, and all seven pluginval strictness-5 checks passed in workflow #44031640565. FL Studio scan/load, saved-project/state recall, musical A/B, target-hardware CPU/latency, and full UI acceptance remain unverified.
+- Windows x64 VST3 build, package verification, and all seven pluginval strictness-5 checks passed in workflow #44465372978 on PR #12 head `2bb2c17e826eeaa967f182dcfd80a42072c7fec2`.
 - The Actions package is preview-only and unsigned. The optional PowerShell helper is not a signed installer and does not run automatically.
 - No presets, bypass button, or resizable-art animation yet.
 - Night Bloom, Constrictor and the Tube/Fold/Hard modes of Serpent's Maw are not oversampled
@@ -83,7 +91,7 @@ replace `Assets/art.jpg` with a high-res export (same framing) for sharp results
 - Hosts that exceed their declared max block size make Dark Forest pass audio through.
 - Company name `Skell Audio`, manufacturer code `SkAu` and bundle IDs are taken from the
   template; change them in `CMakeLists.txt` if you want your own.
-- Commercial release still needs owner-approved license/attribution, vendor URL, support email, VST3 SDK license review, a Windows signing/installer decision, and host/audio acceptance. No final license or commercial approval is included in this preview.
+- Commercial release still needs owner-approved license/attribution, vendor URL, support email, VST3 SDK license review, a Windows signing/installer decision, and host/audio acceptance. No final license or commercial approval is included in the preview.
 
 ## DSP tests (no JUCE needed)
 
@@ -108,9 +116,11 @@ or measuring Windows CPU/latency.
 Names: constrictor, nightbloom (Plugins/NightBloom), butterfly (ButterflyDelay), shed (ShedSkin).
 
 ## Animation layers
+
 The six butterflies are cut out of the illustration and animated live (flap, drift, faster when audio is playing). `Assets/art.jpg` is the art *without* them; `Assets/butterflies.png` holds the sprites; the untouched original is `Assets/source/art_original.jpg`. To change the art, replace the original and run `python3 Tools/make_layers.py` (numpy, scipy, opencv-python, pillow). If the butterflies move in the new art, update the home positions in `kSprites` in `Common/MawEditor.cpp` from the script's printed table.
 
 ## What moves in each plugin
+
 All: breathing zoom, flapping butterflies, drifting particles, an idling tongue. Plus:
 Dark Forest - mist rolls in with Size and level. Hypnosis - the pupil dilates with the real LFO and rings leave the eye.
 Serpent's Maw - the tongue flicks, faster the hotter the signal. Butterfly Delay - ghost trails behind the butterflies, spaced by Time.
