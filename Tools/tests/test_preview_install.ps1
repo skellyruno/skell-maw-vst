@@ -216,6 +216,28 @@ try {
     Assert-True -Condition ((@(Get-ChildItem -LiteralPath $rolledBack.ArchivedPreviewDirectory -Directory -Filter "*.vst3")).Count -eq 7) -Message "preview bundles are preserved in the rollback archive"
 
     $secondInstall = Install-SkellMawPreview -PackagePath $packagePath -Vst3Path $targetPath -BackupRoot $backupRoot -Confirm:$false
+
+    $systemRollbackRoot = Join-Path $tempRoot "system-rollback"
+    New-Item -ItemType Directory -Path $systemRollbackRoot -Force | Out-Null
+    $systemRollbackManifestPath = Join-Path $systemRollbackRoot "install-manifest.json"
+    $systemRollbackManifest = Get-Content -LiteralPath $secondInstall.ManifestPath -Raw | ConvertFrom-Json
+    $systemRollbackManifest.target_directory = $systemTarget
+    $systemRollbackManifest.backup_directory = $systemRollbackRoot
+    $systemRollbackManifest | ConvertTo-Json -Depth 12 |
+        Set-Content -LiteralPath $systemRollbackManifestPath -Encoding utf8
+    Assert-Throws -Action { Restore-SkellMawPreview -ManifestPath $systemRollbackManifestPath -Confirm:$false } -Message "rollback refuses a Program Files destination even when the manifest is edited"
+
+    $nestedRollbackRoot = Join-Path $targetPath ".skell-maw-backup-guard"
+    New-Item -ItemType Directory -Path $nestedRollbackRoot -Force | Out-Null
+    $nestedRollbackManifestPath = Join-Path $nestedRollbackRoot "install-manifest.json"
+    $nestedRollbackManifest = Get-Content -LiteralPath $secondInstall.ManifestPath -Raw | ConvertFrom-Json
+    $nestedRollbackManifest.target_directory = $targetPath
+    $nestedRollbackManifest.backup_directory = $nestedRollbackRoot
+    $nestedRollbackManifest | ConvertTo-Json -Depth 12 |
+        Set-Content -LiteralPath $nestedRollbackManifestPath -Encoding utf8
+    Assert-Throws -Action { Restore-SkellMawPreview -ManifestPath $nestedRollbackManifestPath -Confirm:$false } -Message "rollback refuses a backup directory inside the VST3 scan path"
+    Remove-Item -LiteralPath $nestedRollbackRoot -Recurse -Force
+
     $modifiedBundle = Join-Path $targetPath "Hypnosis.vst3"
     Set-Content -LiteralPath (Join-Path $modifiedBundle "user-change.txt") -Value "keep this user change" -Encoding utf8
     Assert-Throws -Action { Restore-SkellMawPreview -ManifestPath $secondInstall.ManifestPath -Confirm:$false } -Message "rollback refuses to overwrite a bundle changed after install"

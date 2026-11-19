@@ -643,6 +643,11 @@ function Restore-SkellMawPreview {
         throw "The Skell Maw preview rollback helper supports Windows only."
     }
 
+    $manifestItem = Get-Item -LiteralPath $ManifestPath -Force -ErrorAction Stop
+    if ($manifestItem.PSIsContainer -or
+        ($manifestItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Install manifest must be a normal file."
+    }
     $manifestFullPath = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $ManifestPath -ErrorAction Stop).Path)
     $manifest = Get-Content -LiteralPath $manifestFullPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     if ($manifest.product -ne "Skell Maw" -or $manifest.schema_version -ne 1) {
@@ -659,12 +664,10 @@ function Restore-SkellMawPreview {
     if ($manifestDirectory -ne $runRoot) {
         throw "Manifest must remain inside its original backup directory."
     }
-
-    $expectedNames = @($script:ExpectedPluginNames | Sort-Object)
-    $manifestNames = @($entries | ForEach-Object { [string]$_.name } | Sort-Object)
-    if ($entries.Count -ne 7 -or
-        ($manifestNames -join [Environment]::NewLine) -ne ($expectedNames -join [Environment]::NewLine)) {
-        throw "Manifest must contain exactly the seven expected plugin entries."
+    $runRootItem = Get-Item -LiteralPath $runRoot -Force -ErrorAction Stop
+    if (-not $runRootItem.PSIsContainer -or
+        ($runRootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Manifest backup directory must be a normal directory."
     }
 
     $trimChars = [char[]]@(
@@ -674,6 +677,34 @@ function Restore-SkellMawPreview {
     if ($target -eq [System.IO.Path]::GetPathRoot($target)) {
         throw "Refusing to roll back into a drive root."
     }
+    $targetRoot = $target.TrimEnd($trimChars)
+    $runRootPath = $runRoot.TrimEnd($trimChars)
+    $targetPrefix = $targetRoot + [System.IO.Path]::DirectorySeparatorChar
+    $runRootPrefix = $runRootPath + [System.IO.Path]::DirectorySeparatorChar
+    if ($targetRoot -eq $runRootPath -or
+        $targetRoot.StartsWith($runRootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $runRootPath.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Manifest backup directory and VST3 destination must be separate directories."
+    }
+
+    $programFilesX86 = [System.Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    foreach ($systemPath in @($env:ProgramFiles, $programFilesX86)) {
+        if (-not [string]::IsNullOrWhiteSpace($systemPath)) {
+            $systemRoot = [System.IO.Path]::GetFullPath($systemPath).TrimEnd($trimChars)
+            if ($targetRoot -eq $systemRoot -or
+                $targetRoot.StartsWith(($systemRoot + [System.IO.Path]::DirectorySeparatorChar), [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "System-wide Program Files rollback is disabled; restore only to a per-user VST3 directory."
+            }
+        }
+    }
+
+    $expectedNames = @($script:ExpectedPluginNames | Sort-Object)
+    $manifestNames = @($entries | ForEach-Object { [string]$_.name } | Sort-Object)
+    if ($entries.Count -ne 7 -or
+        ($manifestNames -join [Environment]::NewLine) -ne ($expectedNames -join [Environment]::NewLine)) {
+        throw "Manifest must contain exactly the seven expected plugin entries."
+    }
+
     if (Test-Path -LiteralPath $target) {
         $targetItem = Get-Item -LiteralPath $target -Force -ErrorAction Stop
         if (-not $targetItem.PSIsContainer -or ($targetItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
