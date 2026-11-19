@@ -2,6 +2,8 @@
 
 ## 1.0.0 — source-quality update (2026-11-14, not a released binary)
 
+- Correct the string-aware VST3 metadata regression fixture to use valid escaped JSON quotes and backslashes; parser behavior and package contents are unchanged.
+
 - Add strict RFC 8259 metadata parsing: reject duplicate JSON keys, NaN/Infinity, non-object Factory Info, and non-string class categories before packaging.
 - Add a manual-only commercial-candidate gate requiring an owner-supplied approved manifest, matching compiled vendor identity, HTTPS vendor URL, support email, a hash-verified LICENSE, and hash-verified third-party notices.
 - Keep `build-info.json.release_status` preview-only for commercial candidates so the existing private installer remains compatible; add a Windows PowerShell regression for that path.

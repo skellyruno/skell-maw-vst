@@ -95,9 +95,13 @@ class PackageVerifierTests(unittest.TestCase):
         return result
 
     def test_trailing_comma_removal_is_string_aware(self):
-        raw = '{"text":"literal ,} and \\\\"quoted\\\\"","nested":[1,2,],}'
-        parsed = json.loads(remove_trailing_commas(raw))
-        self.assertEqual(parsed["text"], 'literal ,} and "quoted"')
+        # Valid JSON escaping: the comma/brace inside the string must remain,
+        # while only the two structural trailing commas are removed.
+        raw = r'{"text":"literal ,} and \"quoted\" and \\path","nested":[1,2,],}'
+        normalized = remove_trailing_commas(raw)
+        self.assertEqual(normalized, r'{"text":"literal ,} and \"quoted\" and \\path","nested":[1,2]}')
+        parsed = json.loads(normalized)
+        self.assertEqual(parsed["text"], r'literal ,} and "quoted" and \path')
         self.assertEqual(parsed["nested"], [1, 2])
 
     def test_unterminated_string_is_rejected(self):
